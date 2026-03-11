@@ -21,8 +21,9 @@ const EditAchiev: React.FC<EditAchievProps> = ({
   onClose,
 }) => {
   const [editError, setEditError] = useState<string | null>(null);
-  const [localItem, setLocalItem] =
-    useState<ArchiveCategoryItem | null>(editingItem);
+  const [localItem, setLocalItem] = useState<ArchiveCategoryItem | null>(
+    editingItem,
+  );
 
   const [localCategories, setLocalCategories] =
     useState<CategoryItem[]>(categories);
@@ -36,6 +37,8 @@ const EditAchiev: React.FC<EditAchievProps> = ({
 
   if (!localItem || !originalItem) return null;
 
+  const [deleteUrls, setDeleteUrls] = useState<string[]>([]);
+
   // 🔥 เพิ่มรูปใหม่
   const handleAddImages = (files: File[]) => {
     setNewImages((prev) => [...prev, ...files]);
@@ -44,7 +47,37 @@ const EditAchiev: React.FC<EditAchievProps> = ({
     setNewPreviewUrls((prev) => [...prev, ...urls]);
   };
 
-  // 🔥 Save แบบรองรับรูป
+  // 🔥 ตั้งรูปเป็นรูปหลัก (index 0)
+  const handleSetAsPrimary = (index: number) => {
+    if (!localItem?.url) return;
+
+    const newUrls = [...localItem.url];
+    const selected = newUrls[index];
+
+    newUrls.splice(index, 1);
+    newUrls.unshift(selected);
+
+    setLocalItem({
+      ...localItem,
+      url: newUrls,
+    });
+  };
+
+  // 🔥 ลบรูปเดิม
+  const handleDeleteImage = (url: string) => {
+    if (!localItem?.url) return;
+
+    // เก็บไว้ส่ง backend
+    setDeleteUrls((prev) => [...prev, url]);
+
+    // ลบออกจาก UI
+    setLocalItem({
+      ...localItem,
+      url: localItem.url.filter((img) => img !== url),
+    });
+  };
+
+  // 🔥 Save แบบรองรับรูป + ลำดับรูป
   const handleSaveEdit = async () => {
     setEditError(null);
 
@@ -52,7 +85,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
       const selectedCategory = localCategories.find(
         (cat) =>
           String(cat.id_category) === localItem.category_name ||
-          cat.name === localItem.category_name
+          cat.name === localItem.category_name,
       );
 
       if (!selectedCategory) {
@@ -61,32 +94,35 @@ const EditAchiev: React.FC<EditAchievProps> = ({
       }
 
       const formData = new FormData();
+
       formData.append("title", localItem.name ?? "");
       formData.append("description", localItem.description ?? "");
-      formData.append(
-        "id_category",
-        String(selectedCategory.id_category)
-      );
+      formData.append("id_category", String(selectedCategory.id_category));
+
+      // 🔥 ส่ง deleteUrls เข้า backend
+      deleteUrls.forEach((url) => {
+        formData.append("deleteUrls", url);
+      });
+      // 🔥 ส่งลำดับ existing รูปใหม่ (สำคัญมาก)
+      localItem.url?.forEach((url) => {
+        formData.append("existingUrls", url);
+      });
 
       // 🔥 ส่งรูปใหม่เข้า backend
       newImages.forEach((image) => {
         formData.append("images", image);
       });
 
-      const res = await fetch(
-        `${API_URL}/archive/${localItem.id}`,
-        {
-          method: "PUT",
-          body: formData,
-          credentials: "include",
-        }
-      );
+      const res = await fetch(`${API_URL}/archive/${localItem.id}`, {
+        method: "PUT",
+        body: formData,
+        credentials: "include",
+      });
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         setEditError(
-          data?.message ||
-            "Failed to update achievement. Please try again."
+          data?.message || "Failed to update achievement. Please try again.",
         );
         return;
       }
@@ -94,9 +130,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
       await fetchData();
       onClose();
     } catch {
-      setEditError(
-        "Something went wrong. Please check your connection."
-      );
+      setEditError("Something went wrong. Please check your connection.");
     }
   };
 
@@ -104,9 +138,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
         <div className="bg-white p-6 rounded-lg w-[520px]">
-          <h2 className="text-2xl font-semibold mb-4">
-            Edit Achievement
-          </h2>
+          <h2 className="text-2xl font-semibold mb-4">Edit Achievement</h2>
 
           {/* 🔥 Hidden file input */}
           <input
@@ -116,9 +148,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
             ref={fileInputRef}
             className="hidden"
             onChange={(e) => {
-              const files = Array.from(
-                e.target.files || []
-              );
+              const files = Array.from(e.target.files || []);
               handleAddImages(files);
               e.target.value = "";
             }}
@@ -167,8 +197,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
                 localCategories.find(
                   (cat) =>
                     cat.name === localItem.category_name ||
-                    String(cat.id_category) ===
-                      localItem.category_name
+                    String(cat.id_category) === localItem.category_name,
                 )?.id_category || ""
               }
               onChange={(e) =>
@@ -180,10 +209,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
             >
               <option value="">-- Select Category --</option>
               {localCategories.map((cat) => (
-                <option
-                  key={cat.id_category}
-                  value={cat.id_category}
-                >
+                <option key={cat.id_category} value={cat.id_category}>
                   {cat.id_category} - {cat.name}
                 </option>
               ))}
@@ -199,13 +225,37 @@ const EditAchiev: React.FC<EditAchievProps> = ({
               {localItem.url?.map((imageUrl, index) => (
                 <div
                   key={`old-${index}`}
-                  className="w-full h-32 border rounded overflow-hidden bg-gray-50"
+                  className="w-full flex flex-col items-center relative"
                 >
-                  <img
-                    src={imageUrl}
-                    alt="old"
-                    className="w-full h-full object-cover"
-                  />
+                  <div className="w-full h-32 border rounded overflow-hidden bg-gray-50 relative">
+                    {/* 🔥 ปุ่มกากบาท */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteImage(imageUrl)}
+                      className="absolute top-1 right-1 bg-red-600 bg-opacity-60 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-700 transition"
+                    >
+                      ×
+                    </button>
+
+                    <img
+                      src={imageUrl}
+                      alt="old"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetAsPrimary(index)}
+                    className={`mt-2 px-3 py-1 text-xs rounded transition ${
+                      index === 0
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {index === 0 ? "Primary" : "Set as Primary"}
+                  </button>
                 </div>
               ))}
 
@@ -225,9 +275,7 @@ const EditAchiev: React.FC<EditAchievProps> = ({
 
               {/* 🔥 กรอบ + */}
               <div
-                onClick={() =>
-                  fileInputRef.current?.click()
-                }
+                onClick={() => fileInputRef.current?.click()}
                 className="w-full h-32 border-2 border-dashed rounded flex items-center justify-center cursor-pointer hover:bg-gray-100 transition"
               >
                 <Plus size={28} className="text-gray-400" />
@@ -237,23 +285,15 @@ const EditAchiev: React.FC<EditAchievProps> = ({
 
           {/* Buttons */}
           <div className="flex justify-between items-center mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsCreateOpen(true)}
-            >
+            <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
               + Create Category
             </Button>
 
             <div className="flex gap-4">
-              <Button
-                onClick={onClose}
-                variant="secondary"
-              >
+              <Button onClick={onClose} variant="secondary">
                 Cancel
               </Button>
-              <Button onClick={handleSaveEdit}>
-                Save
-              </Button>
+              <Button onClick={handleSaveEdit}>Save</Button>
             </div>
           </div>
         </div>
@@ -265,20 +305,15 @@ const EditAchiev: React.FC<EditAchievProps> = ({
           API_URL={API_URL}
           onClose={() => setIsCreateOpen(false)}
           onSuccess={(createdCategory) => {
-            setLocalCategories((prev) => [
-              ...prev,
-              createdCategory,
-            ]);
+            setLocalCategories((prev) => [...prev, createdCategory]);
 
             setLocalItem((prev) =>
               prev
                 ? {
                     ...prev,
-                    category_name: String(
-                      createdCategory.id_category
-                    ),
+                    category_name: String(createdCategory.id_category),
                   }
-                : prev
+                : prev,
             );
           }}
         />
