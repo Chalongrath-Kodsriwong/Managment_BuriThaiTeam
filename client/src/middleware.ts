@@ -12,6 +12,7 @@ const PROTECTED_PREFIXES = [
   "/stock",
   "/category",
   "/payment",
+  "/achievement", // ✅ เพิ่มบรรทัดนี้
 ];
 
 export const middleware = async (req: NextRequest) => {

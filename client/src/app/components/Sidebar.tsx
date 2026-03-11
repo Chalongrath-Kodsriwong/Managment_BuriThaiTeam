@@ -34,6 +34,7 @@ const menuItems = [
   { href: "/account", label: "Account Management", icon: <User className="w-5 h-5 mr-2" /> },
   { href: "/role", label: "Role Management", icon: <Shield className="w-5 h-5 mr-2" /> },
   { href: "/payment", label: "Payment Account", icon: <CircleDollarSign className="w-5 h-5 mr-2" /> },
+  { href: "/achievement", label: "Achievement", icon: <TextSearch className="w-5 h-5 mr-2" /> },
 ];
 
 export function SidebarComponent({ children }: SidebarComponentProps) {
