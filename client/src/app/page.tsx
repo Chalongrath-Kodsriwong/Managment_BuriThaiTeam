@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "");
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
@@ -30,11 +30,16 @@ export default function LoginPage() {
         credentials: "include", 
       });
 
-      const data = await res.json();
+      let data: { message?: string } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
 
       if (!res.ok) {
    
-        setError(data.message || "Login failed");
+        setError(data?.message || "Login failed");
         return;
       }
 

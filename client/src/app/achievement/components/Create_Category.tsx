@@ -61,11 +61,14 @@ const CreateCategory: React.FC<CreateCategoryProps> = ({
           </div>
         )}
 
-        <div className="mb-4">
+        <div className="mb-4 ">
+          <div className="mb-2">
           <Label>Name</Label>
+          </div>
           <Input
             value={newCategoryName}
             onChange={(e) => setNewCategoryName(e.target.value)}
+            placeholder="Please type categorie..."
           />
         </div>
 

@@ -1,5 +1,8 @@
+"use client";
+
 import { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarProvider,
@@ -16,7 +19,9 @@ import {
   User, 
   Shield,
   CircleDollarSign,
-  TextSearch
+  TextSearch,
+  Bell,
+  LogOut
 } from "lucide-react"; 
 
 
@@ -34,10 +39,28 @@ const menuItems = [
   { href: "/account", label: "Account Management", icon: <User className="w-5 h-5 mr-2" /> },
   { href: "/role", label: "Role Management", icon: <Shield className="w-5 h-5 mr-2" /> },
   { href: "/payment", label: "Payment Account", icon: <CircleDollarSign className="w-5 h-5 mr-2" /> },
+  { href: "/line-notification", label: "LINE Notification", icon: <Bell className="w-5 h-5 mr-2" /> },
   { href: "/achievement", label: "Achievement", icon: <TextSearch className="w-5 h-5 mr-2" /> },
 ];
 
 export function SidebarComponent({ children }: SidebarComponentProps) {
+  const router = useRouter();
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "");
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="flex w-full h-full">
@@ -65,7 +88,17 @@ export function SidebarComponent({ children }: SidebarComponentProps) {
           </SidebarContent>
 
           <SidebarFooter>
-            <p className="p-3">Footer</p>
+            <div className="p-3">
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleLogout}
+                className="w-full flex items-center justify-start gap-2"
+              >
+                <LogOut className="w-5 h-5" />
+                Logout
+              </Button>
+            </div>
           </SidebarFooter>
         </Sidebar>
 

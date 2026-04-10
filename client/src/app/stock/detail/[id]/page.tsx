@@ -56,10 +56,19 @@ export default function ProductDetails() {
   const raw = searchParams.get("categoryData");
   const categoryData: Category[] = raw ? (JSON.parse(raw) as Category[]) : [];
 
+  const parseQuality = (value?: string): string[] => {
+    if (!value) return [];
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
   const form = useForm<ProductFormValues>({
     defaultValues: {
       name: "",
       brand: "",
+      quality: "",
       short_description: "",
       description: "",
       id_category: "",
@@ -67,7 +76,8 @@ export default function ProductDetails() {
     },
   });
 
-  const { control, reset } = form;
+  const { control, reset, setValue, watch } = form;
+  const selectedQuality = parseQuality(watch("quality"));
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -176,6 +186,7 @@ export default function ProductDetails() {
       reset({
         name: product.name,
         brand: product.brand,
+        quality: product.quality ?? "",
         short_description: product.short_description,
         description: product.description,
         id_category: product.id_category,
@@ -298,6 +309,14 @@ export default function ProductDetails() {
     return /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url);
   };
 
+  const isPdfFile = (fileOrUrl: File | string) => {
+    if (typeof fileOrUrl !== "string") {
+      return fileOrUrl.type === "application/pdf";
+    }
+
+    return /\.pdf($|\?)/i.test(fileOrUrl);
+  };
+
   //Upload Handle
   const handleUploadImages = (files: FileList | null) => {
     if (!files) return;
@@ -305,9 +324,10 @@ export default function ProductDetails() {
     const newImages: UploadedFile[] = Array.from(files).map((file) => ({
       file,
       preview: URL.createObjectURL(file),
-      type: "slide",
+      type: file.type === "application/pdf" ? "pdf" : "slide",
       is_cover: false,
       isVideo: file.type.startsWith("video/"),
+      isPdf: file.type === "application/pdf",
     }));
 
     setImages((prev) => [...prev, ...newImages]);
@@ -324,10 +344,10 @@ export default function ProductDetails() {
     });
 
     formData.append(
-      "images_meta",
+      "add_images",
       JSON.stringify(
         newImages.map((img) => ({
-          type: img.is_cover ? "cover" : "slide",
+          type: img.isPdf ? "pdf" : img.is_cover ? "cover" : "slide",
           is_cover: img.is_cover,
         }))
       )
@@ -437,20 +457,41 @@ export default function ProductDetails() {
                   className="space-y-6"
                   onSubmit={form.handleSubmit(onSubmit)}
                 >
-                  {/* ================= IMAGES ================= */}
+                  {/* ================= ASSETS ================= */}
                   <div className="space-y-4">
-                    <h3 className="font-semibold">Images</h3>
+                    <div className="space-y-1">
+                      <h3 className="font-semibold">Media And PDF Files</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Manage product images, videos, and PDF documents here.
+                      </p>
+                    </div>
 
                     {/* ACTIONS */}
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-4">
                       <Button type="button" variant="outline" asChild>
                         <label className="flex items-center gap-2 cursor-pointer">
-                          <FiPlus /> Upload
+                          <FiPlus /> Upload Image Or Video
                           <input
                             type="file"
                             multiple
                             hidden
                             accept="image/*,video/*"
+                            onChange={(e) => {
+                              handleUploadImages(e.target.files);
+                              e.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+                      </Button>
+
+                      <Button type="button" variant="outline" asChild>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <FiPlus /> Upload PDF
+                          <input
+                            type="file"
+                            multiple
+                            hidden
+                            accept="application/pdf"
                             onChange={(e) => {
                               handleUploadImages(e.target.files);
                               e.currentTarget.value = "";
@@ -465,7 +506,7 @@ export default function ProductDetails() {
                           onClick={handleSumitImages}
                           disabled={imageLoading}
                         >
-                          {imageLoading ? "Saving..." : "Save Image"}
+                          {imageLoading ? "Saving..." : "Save Files"}
                         </Button>
                       )}
                       <Button
@@ -476,8 +517,13 @@ export default function ProductDetails() {
                       >
                         {deletingIds.length > 0
                           ? "Deleting..."
-                          : "Delete Selected Images"}
+                          : "Delete Selected Files"}
                       </Button>
+                    </div>
+
+                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      PDF files are kept with product assets and will not be
+                      treated as cover images.
                     </div>
 
                     {/* GRID */}
@@ -487,12 +533,23 @@ export default function ProductDetails() {
                           img.file instanceof File
                             ? img.file.type.startsWith("video/")
                             : isVideoFile(img.preview);
+                        const isPdf =
+                          img.file instanceof File
+                            ? isPdfFile(img.file)
+                            : img.type === "pdf" || isPdfFile(img.preview);
 
                         return (
                           <div
                             key={img.id ?? img.preview}
                             className="border rounded-md p-2 space-y-2 w-[200px]"
                           >
+                            <div className="text-xs font-medium text-muted-foreground">
+                              {isPdf
+                                ? "PDF Document"
+                                : isVideo
+                                  ? "Video File"
+                                  : "Image File"}
+                            </div>
                             {img.id !== undefined && img.id !== null && (
                               <div className="flex items-center gap-2">
                                 <Checkbox
@@ -512,7 +569,19 @@ export default function ProductDetails() {
 
                             {/* PREVIEW */}
                             <div className="relative w-full aspect-square bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                              {isVideo ? (
+                              {isPdf ? (
+                                <a
+                                  href={img.preview}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center"
+                                >
+                                  <span className="text-5xl">PDF</span>
+                                  <span className="text-sm text-blue-600 underline">
+                                    Open PDF
+                                  </span>
+                                </a>
+                              ) : isVideo ? (
                                 <video
                                   src={img.preview}
                                   controls
@@ -531,7 +600,7 @@ export default function ProductDetails() {
                             </div>
 
                             {/* COVER SWITCH (image เท่านั้น) */}
-                            {!isVideo && (
+                            {!isVideo && !isPdf && (
                               <div className="flex justify-between items-center">
                                 <span className="text-sm">Cover</span>
                                 <Switch
@@ -540,7 +609,13 @@ export default function ProductDetails() {
                                     // 1. update UI
                                     setImages((prev) =>
                                       prev.map((p, i) => {
-                                        if (isVideoFile(p.preview)) return p;
+                                        if (
+                                          isVideoFile(p.preview) ||
+                                          p.type === "pdf" ||
+                                          isPdfFile(p.preview)
+                                        ) {
+                                          return p;
+                                        }
 
                                         if (i === index) {
                                           return {
@@ -655,6 +730,52 @@ export default function ProductDetails() {
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={control}
+                    name="quality"
+                    render={() => (
+                      <FormItem>
+                        <FormLabel>Quality (มือสินค้า)</FormLabel>
+                        <FormControl>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between border rounded-md px-3 py-2">
+                              <span className="text-sm">มือ 1</span>
+                              <Switch
+                                checked={selectedQuality.includes("มือ 1")}
+                                onCheckedChange={(checked) => {
+                                  const next = checked
+                                    ? Array.from(new Set([...selectedQuality, "มือ 1"]))
+                                    : selectedQuality.filter((q) => q !== "มือ 1");
+                                  setValue("quality", next.join(", "));
+                                }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between border rounded-md px-3 py-2">
+                              <span className="text-sm">มือ 2</span>
+                              <Switch
+                                checked={selectedQuality.includes("มือ 2")}
+                                onCheckedChange={(checked) => {
+                                  const next = checked
+                                    ? Array.from(new Set([...selectedQuality, "มือ 2"]))
+                                    : selectedQuality.filter((q) => q !== "มือ 2");
+                                  setValue("quality", next.join(", "));
+                                }}
+                              />
+                            </div>
+
+                            <p className="text-xs text-muted-foreground">
+                              เลือกได้: ไม่เลือกเลย / มือ 1 / มือ 2 / หรือเลือกทั้งสองอย่าง
+                            </p>
+                          </div>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+
+                  
                   {/* ================= VARIANTS ================= */}
                   {fields.map((_, vIndex) => (
                     <VariantItem

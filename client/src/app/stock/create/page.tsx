@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
-import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -130,10 +129,19 @@ export default function CreateProduct() {
   const router = useRouter();
   const [images, setImages] = useState<UploadedFile[]>([]);
 
-  // Get Params Search
-  const searchParams = useSearchParams();
-  const raw = searchParams.get("categoryData");
-  const categoryData: Category[] = raw ? (JSON.parse(raw) as Category[]) : [];
+  const [categoryData, setCategoryData] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("categoryData");
+    if (!raw) return;
+
+    try {
+      setCategoryData(JSON.parse(raw) as Category[]);
+    } catch (error) {
+      console.error("Invalid categoryData query param", error);
+      setCategoryData([]);
+    }
+  }, []);
 
   const form = useForm<ProductFormValues>({
     defaultValues: {
@@ -170,6 +178,14 @@ export default function CreateProduct() {
     return /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url);
   };
 
+  const isPdfFile = (fileOrUrl: File | string) => {
+    if (typeof fileOrUrl !== "string") {
+      return fileOrUrl.type === "application/pdf";
+    }
+
+    return /\.pdf($|\?)/i.test(fileOrUrl);
+  };
+
   //Upload Handle
   const handleUploadImages = (files: FileList | null) => {
     if (!files) return;
@@ -177,9 +193,10 @@ export default function CreateProduct() {
     const newImages: UploadedFile[] = Array.from(files).map((file) => ({
       file,
       preview: URL.createObjectURL(file),
-      type: "slide",
+      type: file.type === "application/pdf" ? "pdf" : "slide",
       is_cover: false,
       isVideo: file.type.startsWith("video/"),
+      isPdf: file.type === "application/pdf",
     }));
 
     setImages((prev) => [...prev, ...newImages]);
@@ -237,33 +254,65 @@ export default function CreateProduct() {
 
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* ================= IMAGES ================= */}
+            {/* ================= ASSETS ================= */}
             <div className="space-y-4">
-              <h3 className="font-semibold">Images</h3>
+              <div className="space-y-1">
+                <h3 className="font-semibold">Media And PDF Files</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload product images, videos, or PDF documents.
+                </p>
+              </div>
 
-              <Button type="button" variant="outline" asChild>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <FiPlus /> Upload
-                  <input
-                    type="file"
-                    multiple
-                    hidden
-                    accept="image/*,video/*"
-                    onChange={(e) => handleUploadImages(e.target.files)}
-                  />
-                </label>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="outline" asChild>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <FiPlus /> Upload Image Or Video
+                    <input
+                      type="file"
+                      multiple
+                      hidden
+                      accept="image/*,video/*"
+                      onChange={(e) => handleUploadImages(e.target.files)}
+                    />
+                  </label>
+                </Button>
+
+                <Button type="button" variant="outline" asChild>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <FiPlus /> Upload PDF
+                    <input
+                      type="file"
+                      multiple
+                      hidden
+                      accept="application/pdf"
+                      onChange={(e) => handleUploadImages(e.target.files)}
+                    />
+                  </label>
+                </Button>
+              </div>
+
+              <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                PDF files are stored together with product assets and marked as
+                document files.
+              </div>
               <div className="grid grid-cols-[repeat(auto-fill,200px)] gap-4">
                 {images.map((img, index) => {
                   const isVideo =
                     img.file instanceof File
                       ? img.file.type.startsWith("video/")
                       : isVideoFile(img.preview);
+                  const isPdf =
+                    img.file instanceof File
+                      ? isPdfFile(img.file)
+                      : isPdfFile(img.preview);
                   return (
                     <div
                       key={img.id ?? img.preview}
                       className="relative border rounded-md p-2 space-y-2 w-[200px]"
                     >
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {isPdf ? "PDF Document" : isVideo ? "Video File" : "Image File"}
+                      </div>
                       {/* ❌ DELETE (เฉพาะของที่ยังไม่ save) */}
                       {!img.id && (
                         <button
@@ -280,7 +329,19 @@ export default function CreateProduct() {
                       )}
                       {/* PREVIEW */}
                       <div className="relative w-full aspect-square bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                        {isVideo ? (
+                        {isPdf ? (
+                          <a
+                            href={img.preview}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center"
+                          >
+                            <span className="text-5xl">PDF</span>
+                            <span className="text-sm text-blue-600 underline">
+                              Open PDF
+                            </span>
+                          </a>
+                        ) : isVideo ? (
                           <video
                             src={img.preview}
                             controls
@@ -297,7 +358,7 @@ export default function CreateProduct() {
                         )}
                       </div>
                       {/* SWITCH COVER (image only) */}
-                      {!isVideo && (
+                      {!isVideo && !isPdf && (
                         <div className="flex justify-between items-center">
                           <Switch
                             checked={img.is_cover}

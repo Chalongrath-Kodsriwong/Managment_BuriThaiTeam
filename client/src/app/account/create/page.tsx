@@ -22,6 +22,8 @@ import { FiUser } from "react-icons/fi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountFormValues } from "@/types/accounts";
 
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "");
+
 // ---------- crop helpers ----------
 async function getCroppedImg(
   imageSrc: string,
@@ -147,6 +149,7 @@ export default function AccountForm() {
   };
 
   const onSubmit: SubmitHandler<AccountFormValues> = async (data) => {
+    setError("");
     setIsSubmitting(true);
 
     try {
@@ -174,21 +177,25 @@ export default function AccountForm() {
         formData.append(backendKey, value as string);
       });
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
+      const response = await fetch(`${API_URL}/users`, {
         method: "POST",
         credentials: "include",
         body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => null);
+        const message = errorData?.message || "Failed to create account";
         console.error("CREATE ERROR:", errorData);
+        setError(message);
         return;
       }
 
-      console.log("Account created successfully!");
+      router.push("/account");
+      router.refresh();
     } catch (err) {
       console.error(err);
+      setError("Network error: Unable to create account");
     } finally {
       setIsSubmitting(false);
     }
@@ -476,7 +483,7 @@ export default function AccountForm() {
 
               {/* ================= Submit ================= */}
               <div className="flex justify-center mt-10">
-                <Button type="submit" className="text-lg px-10 py-4">
+                <Button type="submit" className="text-lg px-10 py-4" disabled={isSubmitting}>
                   Create Account
                 </Button>
               </div>
