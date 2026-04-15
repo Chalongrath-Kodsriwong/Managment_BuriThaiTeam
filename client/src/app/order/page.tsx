@@ -187,11 +187,15 @@ export default function OrderManagement() {
       cell: ({ row }) => (
         <EditableTrackingWrapper
           row={row}
-          onValueChange={(newVal) => {
+          onValueChange={(payload) => {
             setTableOrders((prev) =>
               prev.map((o) =>
                 o.sku === row.original.sku
-                  ? { ...o, tracking_number: newVal }
+                  ? {
+                      ...o,
+                      tracking_number: payload.tracking_number,
+                      paymentStatus: payload.paymentStatus,
+                    }
                   : o
               )
             );

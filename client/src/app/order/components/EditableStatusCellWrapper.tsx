@@ -9,19 +9,32 @@ type Props = {
   onValueChange?: (newStatus: OrderInterface["paymentStatus"]) => void;
 };
 
-export function EditableStatusCellWrapper({ row }: Props) {
+export function EditableStatusCellWrapper({ row, onValueChange }: Props) {
   const orderId = Number(row.original.sku.split("-")[1]);
   const value = row.original.paymentStatus;
 
   const handleSave = async (newValue: OrderInterface["paymentStatus"]) => {
+    if (newValue === value) return;
+
+    if (newValue === "success") {
+      alert("Please save a tracking number to mark this order as success.");
+      return;
+    }
+
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/order-management/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({  status: newValue }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/order-management/${orderId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ status: newValue }),
+        }
+      );
+
       if (!res.ok) throw new Error("Update failed");
+
+      if (onValueChange) onValueChange(newValue);
       console.log("Updated:", newValue);
     } catch (err) {
       console.error(err);
