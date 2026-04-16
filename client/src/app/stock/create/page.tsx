@@ -128,6 +128,8 @@ const VariantItem = ({
 export default function CreateProduct() {
   const router = useRouter();
   const [images, setImages] = useState<UploadedFile[]>([]);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [categoryData, setCategoryData] = useState<Category[]>([]);
 
@@ -142,6 +144,37 @@ export default function CreateProduct() {
       setCategoryData([]);
     }
   }, []);
+
+  useEffect(() => {
+    if (categoryData.length > 0) return;
+
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/category?page=1&limit=100`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        const payload = await response.json().catch(() => null);
+        const categories = payload?.data?.data;
+
+        if (!response.ok || !Array.isArray(categories)) {
+          throw new Error(payload?.message || "Failed to load categories");
+        }
+
+        setCategoryData(categories);
+      } catch (fetchError) {
+        console.error("Failed to load categories", fetchError);
+        setError("Unable to load categories");
+      }
+    };
+
+    fetchCategories();
+  }, [categoryData.length]);
 
   const form = useForm<ProductFormValues>({
     defaultValues: {
@@ -205,6 +238,15 @@ export default function CreateProduct() {
   /* ===================== SUBMIT ===================== */
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
+    setError("");
+    setIsSubmitting(true);
+
+    if (!data.id_category) {
+      setError("Please select a category");
+      setIsSubmitting(false);
+      return;
+    }
+
     const formData = new FormData();
 
     formData.append("name", data.name);
@@ -230,20 +272,38 @@ export default function CreateProduct() {
       )
     );
 
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
 
-    router.back();
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to create product");
+      }
+
+      router.push("/stock");
+      router.refresh();
+    } catch (submitError) {
+      console.error("Create product error:", submitError);
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to create product"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   /* ===================== UI ===================== */
 
   return (
     <Form {...form}>
-      <Button variant="outline" onClick={() => router.back()}>
+      <Button type="button" variant="outline" onClick={() => router.back()}>
         <FiArrowLeft /> Back
       </Button>
 
@@ -253,6 +313,12 @@ export default function CreateProduct() {
         </CardHeader>
 
         <CardContent>
+          {error ? (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {error}
+            </div>
+          ) : null}
+
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* ================= ASSETS ================= */}
             <div className="space-y-4">
@@ -500,8 +566,8 @@ export default function CreateProduct() {
               <FiPlus /> Add Variant
             </Button>
 
-            <Button type="submit" className="w-full">
-              Create Product
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Product"}
             </Button>
           </form>
         </CardContent>

@@ -315,9 +315,13 @@ export default function StockPage() {
     return range;
   }, [pageCount, pageIndex]);
 
-  const selectedIds = table
-    .getSelectedRowModel()
-    .rows.map((row) => row.original.inventory_id);
+  const selectedProductIds = Array.from(
+    new Set(
+      table
+        .getSelectedRowModel()
+        .rows.map((row) => row.original.product_id)
+    )
+  );
 
   return (
     <SidebarComponent>
@@ -350,10 +354,10 @@ export default function StockPage() {
                   <Button>Create</Button>
                 </Link>
                 <DeleteButton
-                  endpoint="products/inventories"
-                  ids={selectedIds}
-                  confirmMessage="ต้องการลบรายการระดับ Inventory ไหม?"
-                  disabled={selectedIds.length === 0}
+                  endpoint="products"
+                  ids={selectedProductIds}
+                  confirmMessage="ต้องการลบสินค้าทั้ง Product จากรายการที่เลือกใช่ไหม?"
+                  disabled={selectedProductIds.length === 0}
                   onSuccess={async () => {
                     table.resetRowSelection();
                     await fetchData();

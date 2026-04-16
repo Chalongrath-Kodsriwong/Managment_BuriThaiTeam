@@ -31,32 +31,48 @@ export const middleware = async (req: NextRequest) => {
     pathname.startsWith(path)
   );
 
-  if (token && isPublic) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  if (!token) {
+    if (isProtected) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    return NextResponse.next();
   }
 
-  if (!token && isProtected) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
+  try {
+    const payload = token.split(".")[1];
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(base64)) as {
+      exp?: number;
+      roles?: string[];
+    };
 
-  if (token) {
-    try {
-      const payload = token.split(".")[1];
-      const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-      const decoded = JSON.parse(atob(base64));
+    const now = Math.floor(Date.now() / 1000);
+    const roles = Array.isArray(decoded.roles) ? decoded.roles : [];
+    const isManagementRole =
+      roles.includes("admin") || roles.includes("operator");
 
-      const now = Math.floor(Date.now() / 1000);
-
-      if (decoded.exp && decoded.exp < now) {
-        const response = NextResponse.redirect(new URL("/login", req.url));
-        response.cookies.delete("token");
-        return response;
-      }
-    } catch {
+    if (decoded.exp && decoded.exp < now) {
       const response = NextResponse.redirect(new URL("/login", req.url));
       response.cookies.delete("token");
       return response;
     }
+
+    // If token belongs to frontend customer role, clear it for management site.
+    if (!isManagementRole) {
+      const response = isProtected
+        ? NextResponse.redirect(new URL("/login", req.url))
+        : NextResponse.next();
+      response.cookies.delete("token");
+      return response;
+    }
+
+    if (isPublic) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  } catch {
+    const response = NextResponse.redirect(new URL("/login", req.url));
+    response.cookies.delete("token");
+    return response;
   }
 
   return NextResponse.next();
