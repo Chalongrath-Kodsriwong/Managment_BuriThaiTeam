@@ -32,6 +32,8 @@ import { UploadedFile } from "../../dtos/upload-file.dto";
 import { ProductFormValues } from "../../dtos/product.dto";
 import { VariantItemProps } from "../../dtos/variant.dto";
 import { ProductImage } from "../../dtos/inventory.dto";
+import { createEmptySpecTable } from "../../dtos/spec-table.dto";
+import { SpecificationTableEditor } from "../../components/SpecificationTableEditor";
 import {
   buildDirectVariantsPayload,
   DIRECT_INVENTORY_NAME,
@@ -84,6 +86,7 @@ export default function ProductDetails() {
       id_category: "",
       direct_price: 0,
       direct_stock: 0,
+      spec_table: createEmptySpecTable(),
       variants: [],
     },
   });
@@ -214,6 +217,7 @@ export default function ProductDetails() {
         id_category: product.id_category,
         direct_price: directInventory?.price ?? 0,
         direct_stock: directInventory?.stock ?? 0,
+        spec_table: product.spec_table ?? createEmptySpecTable(),
         variants: directVariant ? [] : productVariants,
       });
 
@@ -795,6 +799,21 @@ export default function ProductDetails() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="spec_table"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <SpecificationTableEditor
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
                         </FormControl>
                       </FormItem>
                     )}

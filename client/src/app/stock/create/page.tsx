@@ -27,6 +27,8 @@ import { Switch } from "@/components/ui/switch";
 import { UploadedFile } from "../dtos/upload-file.dto";
 import { ProductFormValues } from "../dtos/product.dto";
 import { VariantItemProps } from "../dtos/variant.dto";
+import { createEmptySpecTable } from "../dtos/spec-table.dto";
+import { SpecificationTableEditor } from "../components/SpecificationTableEditor";
 import {
   buildDirectVariantsPayload,
   ProductInputMode,
@@ -191,6 +193,7 @@ export default function CreateProduct() {
       id_category: "",
       direct_price: 0,
       direct_stock: 0,
+      spec_table: createEmptySpecTable(),
       variants: [],
     },
   });
@@ -316,6 +319,7 @@ export default function CreateProduct() {
     formData.append("short_description", data.short_description);
     formData.append("description", data.description);
     formData.append("id_category", data.id_category);
+    formData.append("spec_table", JSON.stringify(data.spec_table ?? null));
     formData.append("variants", JSON.stringify(variantsPayload));
 
     images.forEach((img) => {
@@ -598,6 +602,21 @@ export default function CreateProduct() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name="spec_table"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <SpecificationTableEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
                   </FormControl>
                 </FormItem>
               )}

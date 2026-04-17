@@ -1,4 +1,5 @@
 import type { ProductVariant } from "./variant.dto";
+import type { ProductSpecTable } from "./spec-table.dto";
 
 export type ProductFormValues = {
   name: string;
@@ -9,5 +10,6 @@ export type ProductFormValues = {
   id_category: string;
   direct_price?: number;
   direct_stock?: number;
+  spec_table?: ProductSpecTable | null;
   variants: ProductVariant[];
 };
