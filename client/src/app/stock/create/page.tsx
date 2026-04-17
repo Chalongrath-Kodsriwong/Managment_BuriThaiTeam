@@ -27,6 +27,11 @@ import { Switch } from "@/components/ui/switch";
 import { UploadedFile } from "../dtos/upload-file.dto";
 import { ProductFormValues } from "../dtos/product.dto";
 import { VariantItemProps } from "../dtos/variant.dto";
+import {
+  buildDirectVariantsPayload,
+  ProductInputMode,
+  sanitizeVariantsPayload,
+} from "../utils/product-mode";
 
 interface Category {
   id_category: number;
@@ -130,6 +135,7 @@ export default function CreateProduct() {
   const [images, setImages] = useState<UploadedFile[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inputMode, setInputMode] = useState<ProductInputMode>("variant");
 
   const [categoryData, setCategoryData] = useState<Category[]>([]);
 
@@ -183,6 +189,8 @@ export default function CreateProduct() {
       short_description: "",
       description: "",
       id_category: "",
+      direct_price: 0,
+      direct_stock: 0,
       variants: [],
     },
   });
@@ -223,29 +231,83 @@ export default function CreateProduct() {
   const handleUploadImages = (files: FileList | null) => {
     if (!files) return;
 
-    const newImages: UploadedFile[] = Array.from(files).map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      type: file.type === "application/pdf" ? "pdf" : "slide",
-      is_cover: false,
-      isVideo: file.type.startsWith("video/"),
-      isPdf: file.type === "application/pdf",
-    }));
+    setImages((prev) => {
+      const hasImageCover = prev.some(
+        (image) =>
+          !image.isPdf &&
+          !image.isVideo &&
+          !image.file?.type.startsWith("video/") &&
+          image.type !== "pdf" &&
+          image.is_cover
+      );
 
-    setImages((prev) => [...prev, ...newImages]);
+      let shouldAssignFirstCover = !hasImageCover;
+
+      const newImages: UploadedFile[] = Array.from(files).map((file) => {
+        const isPdf = file.type === "application/pdf";
+        const isVideo = file.type.startsWith("video/");
+        const shouldBeCover = !isPdf && !isVideo && shouldAssignFirstCover;
+
+        if (shouldBeCover) {
+          shouldAssignFirstCover = false;
+        }
+
+        return {
+          file,
+          preview: URL.createObjectURL(file),
+          type: isPdf ? "pdf" : shouldBeCover ? "cover" : "slide",
+          is_cover: shouldBeCover,
+          isVideo,
+          isPdf,
+        };
+      });
+
+      return [...prev, ...newImages];
+    });
   };
 
   /* ===================== SUBMIT ===================== */
 
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setError("");
-    setIsSubmitting(true);
 
     if (!data.id_category) {
       setError("Please select a category");
-      setIsSubmitting(false);
       return;
     }
+
+    const sanitizedVariants = sanitizeVariantsPayload(data.variants);
+    const directPrice = Number(data.direct_price ?? 0);
+    const directStock = Number(data.direct_stock ?? 0);
+
+    let variantsPayload = sanitizedVariants;
+
+    if (inputMode === "variant") {
+      if (sanitizedVariants.length === 0) {
+        setError("Please add at least one variant or switch to direct stock mode");
+        return;
+      }
+
+      if (!window.confirm("ต้องการใส่ข้อมูลที่ Variant ใช่มั้ย")) {
+        return;
+      }
+    } else {
+      if (!(directPrice > 0) || directStock < 0) {
+        setError("Please fill in both direct price and direct stock before saving");
+        return;
+      }
+
+      if (!window.confirm("ต้องการใส่ข้อมูลโดยไม่ใช้ Variant ใช่มั้ย")) {
+        return;
+      }
+
+      variantsPayload = buildDirectVariantsPayload({
+        price: directPrice,
+        stock: directStock,
+      });
+    }
+
+    setIsSubmitting(true);
 
     const formData = new FormData();
 
@@ -254,7 +316,7 @@ export default function CreateProduct() {
     formData.append("short_description", data.short_description);
     formData.append("description", data.description);
     formData.append("id_category", data.id_category);
-    formData.append("variants", JSON.stringify(data.variants));
+    formData.append("variants", JSON.stringify(variantsPayload));
 
     images.forEach((img) => {
       if (img.file) {
@@ -541,30 +603,132 @@ export default function CreateProduct() {
               )}
             />
 
-            {/* ================= VARIANTS ================= */}
-            {fields.map((field, vIndex) => (
-              <VariantItem
-                key={field.id} 
-                vIndex={vIndex}
-                control={control}
-                register={form.register}
-                onDeleteVariant={onDeleteVariant}
-                onDeleteInventory={onDeleteInventory}
-              />
-            ))}
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <h3 className="font-semibold">Stock Input Mode</h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose one mode only so the save flow stays clear for the team.
+                </p>
+              </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                append({
-                  variant_name: "",
-                  inventories: [{ inventory_name: "", price: 0, stock: 0 }],
-                })
-              }
-            >
-              <FiPlus /> Add Variant
-            </Button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setInputMode("variant")}
+                  className={`rounded-lg border p-4 text-left transition ${
+                    inputMode === "variant"
+                      ? "border-slate-900 bg-slate-50 shadow-sm"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="text-sm font-semibold">Use Variant</div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Use this when the product has options like size, spec, or model.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setInputMode("direct")}
+                  className={`rounded-lg border p-4 text-left transition ${
+                    inputMode === "direct"
+                      ? "border-emerald-700 bg-emerald-50 shadow-sm"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="text-sm font-semibold">No Variant</div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Use this when you only want one price and one stock value.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {inputMode === "variant" ? (
+              <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                <div className="space-y-1">
+                  <h3 className="font-semibold">Variant Setup</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Save will confirm that this product should use variant data.
+                  </p>
+                </div>
+
+                {fields.map((field, vIndex) => (
+                  <VariantItem
+                    key={field.id}
+                    vIndex={vIndex}
+                    control={control}
+                    register={form.register}
+                    onDeleteVariant={onDeleteVariant}
+                    onDeleteInventory={onDeleteInventory}
+                  />
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    append({
+                      variant_name: "",
+                      inventories: [{ inventory_name: "", price: 0, stock: 0 }],
+                    })
+                  }
+                >
+                  <FiPlus /> Add Variant
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
+                <div className="space-y-1">
+                  <h3 className="font-semibold">Direct Price And Stock</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Skip variant fields and save one direct price with one stock amount.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={control}
+                    name="direct_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Product Price</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={field.value ?? 0}
+                            onChange={(event) =>
+                              field.onChange(Number(event.target.value))
+                            }
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="direct_stock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Product Stock</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={field.value ?? 0}
+                            onChange={(event) =>
+                              field.onChange(Number(event.target.value))
+                            }
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Creating..." : "Create Product"}

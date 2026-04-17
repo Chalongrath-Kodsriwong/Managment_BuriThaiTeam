@@ -7,5 +7,7 @@ export type ProductFormValues = {
   short_description: string;
   description: string;
   id_category: string;
+  direct_price?: number;
+  direct_stock?: number;
   variants: ProductVariant[];
 };

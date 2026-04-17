@@ -43,6 +43,7 @@ import {
 import Image from "next/image";
 import DeleteButton from "@/components/deleteButton";
 import { CategoryData, CategoryResponse } from "@/types/category";
+import { DIRECT_INVENTORY_NAME } from "./utils/product-mode";
 
 export default function StockPage() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -100,10 +101,10 @@ export default function StockPage() {
             category_name: product.category?.name ?? "-",
 
             variant_id: variant.variant_id,
-            variant_name: variant.variant_name,
+            variant_name: variant.variant_name || "No Variant",
 
             inventory_id: inv.inventory_id,
-            inventory_name: inv.inventory_name,
+            inventory_name: inv.inventory_name || DIRECT_INVENTORY_NAME,
             price: inv.price,
             stock: inv.stock,
           }));
@@ -159,6 +160,7 @@ export default function StockPage() {
     {
       accessorKey: "inventory_id",
       header: "ID",
+      size: 80,
       cell: ({ row }) => {
         const inventoryId = row.original.inventory_id;
         const productId = row.original.product_id;
@@ -183,12 +185,15 @@ export default function StockPage() {
     {
       accessorKey: "product_name",
       header: "Product",
+      size: 520,
+      minSize: 420,
+      maxSize: 560,
       cell: ({ row }) => {
         const name = row.getValue<string>("product_name");
         const imageUrl = row.original.image_url;
 
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3 text-left">
             {imageUrl ? (
               <Image
                 src={imageUrl}
@@ -204,7 +209,9 @@ export default function StockPage() {
               </div>
             )}
 
-            <span className="text-sm font-medium">{name}</span>
+            <span className="min-w-0 max-w-full whitespace-normal break-words text-sm font-medium leading-snug">
+              {name}
+            </span>
           </div>
         );
       },
@@ -214,6 +221,7 @@ export default function StockPage() {
     {
       accessorKey: "variant_name",
       header: "Variant",
+      size: 140,
       cell: ({ row }) => (
         <div className="text-center">{row.getValue("variant_name")}</div>
       ),
@@ -223,6 +231,7 @@ export default function StockPage() {
     {
       accessorKey: "inventory_name",
       header: "Inventory",
+      size: 140,
       cell: ({ row }) => (
         <div className="text-center">{row.getValue("inventory_name")}</div>
       ),
@@ -232,6 +241,7 @@ export default function StockPage() {
     {
       accessorKey: "stock",
       header: "Stock",
+      size: 90,
       cell: ({ row }) => (
         <div className="text-center">{row.getValue("stock")}</div>
       ),
@@ -241,6 +251,7 @@ export default function StockPage() {
     {
       id: "status",
       header: "Status",
+      size: 120,
       accessorFn: (row) => {
         if (row.stock === 0) return "OutOfStock";
         if (row.stock < 20) return "LowStock";

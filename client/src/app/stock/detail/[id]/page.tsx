@@ -32,6 +32,13 @@ import { UploadedFile } from "../../dtos/upload-file.dto";
 import { ProductFormValues } from "../../dtos/product.dto";
 import { VariantItemProps } from "../../dtos/variant.dto";
 import { ProductImage } from "../../dtos/inventory.dto";
+import {
+  buildDirectVariantsPayload,
+  DIRECT_INVENTORY_NAME,
+  isDirectVariant,
+  ProductInputMode,
+  sanitizeVariantsPayload,
+} from "../../utils/product-mode";
 
 interface Category {
   id_category: number;
@@ -51,6 +58,9 @@ export default function ProductDetails() {
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
   const [deletingIds, setDeletingIds] = useState<number[]>([]);
   const [imageLoading, setImageLoading] = useState(false);
+  const [inputMode, setInputMode] = useState<ProductInputMode>("variant");
+  const [directVariantId, setDirectVariantId] = useState<number | undefined>();
+  const [directInventoryId, setDirectInventoryId] = useState<number | undefined>();
 
   const searchParams = useSearchParams();
   const raw = searchParams.get("categoryData");
@@ -72,6 +82,8 @@ export default function ProductDetails() {
       short_description: "",
       description: "",
       id_category: "",
+      direct_price: 0,
+      direct_stock: 0,
       variants: [],
     },
   });
@@ -182,6 +194,16 @@ export default function ProductDetails() {
 
       const result = await res.json();
       const product = result.data;
+      const productVariants = Array.isArray(product.variants) ? product.variants : [];
+      const directVariant =
+        productVariants.length === 1 && isDirectVariant(productVariants[0])
+          ? productVariants[0]
+          : null;
+      const directInventory = directVariant?.inventories?.[0];
+
+      setInputMode(directVariant ? "direct" : "variant");
+      setDirectVariantId(directVariant?.variant_id);
+      setDirectInventoryId(directInventory?.inventory_id);
 
       reset({
         name: product.name,
@@ -190,7 +212,9 @@ export default function ProductDetails() {
         short_description: product.short_description,
         description: product.description,
         id_category: product.id_category,
-        variants: product.variants,
+        direct_price: directInventory?.price ?? 0,
+        direct_stock: directInventory?.stock ?? 0,
+        variants: directVariant ? [] : productVariants,
       });
 
       setImages(
@@ -212,6 +236,41 @@ export default function ProductDetails() {
     setLoading(true);
     setError("");
     try {
+      const sanitizedVariants = sanitizeVariantsPayload(values.variants);
+      const directPrice = Number(values.direct_price ?? 0);
+      const directStock = Number(values.direct_stock ?? 0);
+
+      let variantsPayload = sanitizedVariants;
+
+      if (inputMode === "variant") {
+        if (sanitizedVariants.length === 0) {
+          throw new Error(
+            "Please add at least one variant or switch to direct stock mode"
+          );
+        }
+
+        if (!window.confirm("ต้องการใส่ข้อมูลที่ Variant ใช่มั้ย")) {
+          setLoading(false);
+          return;
+        }
+      } else {
+        if (!(directPrice > 0) || directStock < 0) {
+          throw new Error("Please fill in both direct price and direct stock");
+        }
+
+        if (!window.confirm("ต้องการใส่ข้อมูลโดยไม่ใช้ Variant ใช่มั้ย")) {
+          setLoading(false);
+          return;
+        }
+
+        variantsPayload = buildDirectVariantsPayload({
+          variantId: directVariantId,
+          inventoryId: directInventoryId,
+          price: directPrice,
+          stock: directStock,
+        });
+      }
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/products/${params.id}`,
         {
@@ -220,15 +279,25 @@ export default function ProductDetails() {
             "Content-Type": "application/json",
           },
           credentials: "include",
-          body: JSON.stringify(values),
+          body: JSON.stringify({
+            ...values,
+            variants: variantsPayload,
+            replace_variants: true,
+          }),
         }
       );
 
       if (!res.ok) {
         throw new Error(await res.text());
       }
-    } catch {
-      setError("Failed to update product");
+      await fetchData();
+    } catch (submitError) {
+      console.error("Update product error:", submitError);
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Failed to update product"
+      );
     } finally {
       setLoading(false);
     }
@@ -776,32 +845,134 @@ export default function ProductDetails() {
 
 
                   
-                  {/* ================= VARIANTS ================= */}
-                  {fields.map((_, vIndex) => (
-                    <VariantItem
-                      key={vIndex}
-                      vIndex={vIndex}
-                      control={control}
-                      register={form.register}
-                      onDeleteVariant={onDeleteVariant}
-                      onDeleteInventory={onDeleteInventory}
-                    />
-                  ))}
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="font-semibold">Stock Input Mode</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Keep this product in one mode so the saved inventory stays clear.
+                      </p>
+                    </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      append({
-                        variant_name: "",
-                        inventories: [
-                          { inventory_name: "", price: 0, stock: 0 },
-                        ],
-                      })
-                    }
-                  >
-                    <FiPlus /> Add Variant
-                  </Button>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setInputMode("variant")}
+                        className={`rounded-lg border p-4 text-left transition ${
+                          inputMode === "variant"
+                            ? "border-slate-900 bg-slate-50 shadow-sm"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold">Use Variant</div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Keep product options in variant and inventory rows.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setInputMode("direct")}
+                        className={`rounded-lg border p-4 text-left transition ${
+                          inputMode === "direct"
+                            ? "border-emerald-700 bg-emerald-50 shadow-sm"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold">No Variant</div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Save one direct price and stock value without variant rows.
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {inputMode === "variant" ? (
+                    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold">Variant Setup</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Save will confirm that this product should use variant data.
+                        </p>
+                      </div>
+
+                      {fields.map((_, vIndex) => (
+                        <VariantItem
+                          key={vIndex}
+                          vIndex={vIndex}
+                          control={control}
+                          register={form.register}
+                          onDeleteVariant={onDeleteVariant}
+                          onDeleteInventory={onDeleteInventory}
+                        />
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          append({
+                            variant_name: "",
+                            inventories: [
+                              { inventory_name: "", price: 0, stock: 0 },
+                            ],
+                          })
+                        }
+                      >
+                        <FiPlus /> Add Variant
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold">Direct Price And Stock</h3>
+                        <p className="text-sm text-muted-foreground">
+                          This mode stores one sellable inventory named {DIRECT_INVENTORY_NAME}.
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <FormField
+                          control={control}
+                          name="direct_price"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Product Price</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(event) =>
+                                    field.onChange(Number(event.target.value))
+                                  }
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={control}
+                          name="direct_stock"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Product Stock</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={field.value ?? 0}
+                                  onChange={(event) =>
+                                    field.onChange(Number(event.target.value))
+                                  }
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  )}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Saving..." : "Save"}
                   </Button>
