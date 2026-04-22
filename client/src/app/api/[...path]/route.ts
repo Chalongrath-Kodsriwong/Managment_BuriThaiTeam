@@ -30,8 +30,8 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
   };
 
   if (method !== "GET" && method !== "HEAD") {
-    init.body = req.body;
-    (init as RequestInit & { duplex?: "half" }).duplex = "half";
+    const body = await req.arrayBuffer();
+    init.body = body.byteLength > 0 ? body : undefined;
   }
 
   try {

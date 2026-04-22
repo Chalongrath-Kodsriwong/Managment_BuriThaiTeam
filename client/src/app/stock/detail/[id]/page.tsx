@@ -33,6 +33,7 @@ import { ProductFormValues } from "../../dtos/product.dto";
 import { VariantItemProps } from "../../dtos/variant.dto";
 import { ProductImage } from "../../dtos/inventory.dto";
 import { createEmptySpecTable } from "../../dtos/spec-table.dto";
+import { BrandCombobox } from "../../components/BrandCombobox";
 import { SpecificationTableEditor } from "../../components/SpecificationTableEditor";
 import {
   buildDirectVariantsPayload,
@@ -737,7 +738,10 @@ export default function ProductDetails() {
                       <FormItem>
                         <FormLabel>Brand</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <BrandCombobox
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                          />
                         </FormControl>
                       </FormItem>
                     )}
