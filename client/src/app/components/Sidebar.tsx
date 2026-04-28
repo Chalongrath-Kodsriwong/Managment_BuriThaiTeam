@@ -21,7 +21,8 @@ import {
   CircleDollarSign,
   TextSearch,
   Bell,
-  LogOut
+  LogOut,
+  MonitorCog
 } from "lucide-react"; 
 
 
@@ -40,6 +41,7 @@ const menuItems = [
   { href: "/role", label: "Role Management", icon: <Shield className="w-5 h-5 mr-2" /> },
   { href: "/payment", label: "Payment Account", icon: <CircleDollarSign className="w-5 h-5 mr-2" /> },
   { href: "/line-notification", label: "LINE Notification", icon: <Bell className="w-5 h-5 mr-2" /> },
+  { href: "/simulator-config", label: "Simulator Config", icon: <MonitorCog className="w-5 h-5 mr-2" /> },
   { href: "/achievement", label: "Achievement", icon: <TextSearch className="w-5 h-5 mr-2" /> },
 ];
 
