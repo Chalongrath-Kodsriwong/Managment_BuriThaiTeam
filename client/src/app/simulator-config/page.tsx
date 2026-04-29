@@ -113,7 +113,20 @@ function isLedModuleProduct(product: ProductRecord) {
   const shortDescription = String(product.short_description || "").toLowerCase();
   const text = `${category} ${brand} ${name} ${shortDescription}`;
 
+  // Prefer explicit categories first so accessories that mention
+  // LED modules in their copy do not get mixed into simulator module config.
+  if (/megnent|magnet|แม่เหล็ก/.test(category)) return false;
+  if (/receiver|receiving|receivers/.test(category)) return false;
+  if (/switching/.test(category)) return false;
+  if (/processor/.test(category)) return false;
+  if (/sender/.test(category)) return false;
+  if (/^led$|led\s*module|module/.test(category)) return true;
+
   if (/magnet|แม่เหล็ก/.test(text)) return false;
+  if (/receiver|receiving|receivers/.test(text)) return false;
+  if (/switching/.test(text)) return false;
+  if (/processor/.test(text)) return false;
+  if (/sender/.test(text)) return false;
   return /led\s*module|module/.test(text);
 }
 
