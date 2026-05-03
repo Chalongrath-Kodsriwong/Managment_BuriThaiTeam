@@ -3,10 +3,21 @@
 import { useState, useEffect } from "react";
 import { SidebarComponent } from "@/app/components/Sidebar";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { OrderDashBoard } from "./components/OrderDashBoard";
 import { PopularDashBoard } from "./components/PopularDashBoard";
 import { DashboardResponse, DashboardData ,PopularData , PopularResponse } from "@/types/dashboard";
-import { LoaderIcon } from "lucide-react";
+import { LoaderIcon, RotateCcw } from "lucide-react";
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -14,9 +25,14 @@ export default function DashboardPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState<boolean>(true);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
   const [month, setMonth] = useState<number | undefined>();
   const [year, setYear] = useState<number | undefined>();
+  const API_URL = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/+$/, "");
 
   const fetchData = async () => {
     setError("");
@@ -56,6 +72,49 @@ export default function DashboardPage() {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetSalesDashboard = async () => {
+    setResetError("");
+
+    if (!resetPassword.trim()) {
+      setResetError("กรุณากรอกรหัสผ่านของผู้ใช้งานปัจจุบัน");
+      return;
+    }
+
+    setResetSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_URL}/dashboard/reset-sales`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ password: resetPassword }),
+      });
+
+      let payload: { message?: string } | null = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        setResetError(payload?.message || "Reset ไม่สำเร็จ");
+        return;
+      }
+
+      setResetDialogOpen(false);
+      setResetPassword("");
+      await fetchData();
+    } catch (err) {
+      console.error("reset sales dashboard:", err);
+      setResetError("Something went wrong. Please try again.");
+    } finally {
+      setResetSubmitting(false);
     }
   };
 
@@ -114,8 +173,25 @@ export default function DashboardPage() {
           <div className="text-center py-10 text-red-500 text-lg">{error}</div>
         ) : (
           <div className="px-5">
-            <div className="text-center ">
-              <p className="text-4xl font-semibold ">Dashboard</p>
+            <div className="flex flex-col gap-4 py-2 md:flex-row md:items-center md:justify-between">
+              <div className="text-center md:text-left">
+                <p className="text-4xl font-semibold ">Dashboard</p>
+              </div>
+              <div className="flex justify-center md:justify-end">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="gap-2"
+                  onClick={() => {
+                    setResetError("");
+                    setResetPassword("");
+                    setResetDialogOpen(true);
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset Sales Dashboard
+                </Button>
+              </div>
             </div>
             <div className="py-10 flex flex-row gap-6 justify-center flex-nowrap overflow-x-auto">
               {dashboardCards.map((card, i) => (
@@ -144,6 +220,58 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ยืนยันการ Reset ข้อมูล Dashboard</DialogTitle>
+            <DialogDescription>
+              ปุ่มนี้จะลบข้อมูลยอดขายสินค้า, Top 5 Product Sales และ Popular Products จากคำสั่งซื้อจริงทั้งหมด
+              เพื่อเคลียร์ข้อมูล demo ออกจากระบบ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              หากยืนยัน ระบบจะลบข้อมูลคำสั่งซื้อที่ใช้คำนวณสถิติขายออกจริงทันที กรุณาตรวจสอบให้แน่ใจก่อนดำเนินการ
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-password">รหัสผ่านของผู้ใช้งานปัจจุบัน</Label>
+              <Input
+                id="reset-password"
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="กรอกรหัสผ่านเพื่อยืนยัน"
+              />
+            </div>
+            {resetError ? (
+              <p className="text-sm text-red-500">{resetError}</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setResetDialogOpen(false);
+                setResetPassword("");
+                setResetError("");
+              }}
+              disabled={resetSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleResetSalesDashboard}
+              disabled={resetSubmitting}
+            >
+              {resetSubmitting ? "Resetting..." : "Yes, Reset All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarComponent>
   );
 }
