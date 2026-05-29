@@ -15,6 +15,7 @@ function createForwardHeaders(req: NextRequest): Headers {
   const headers = new Headers(req.headers);
   headers.delete("host");
   headers.delete("content-length");
+  headers.set("x-requested-with", "XMLHttpRequest");
   return headers;
 }
 
@@ -41,6 +42,24 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
     const responseHeaders = new Headers(res.headers);
     responseHeaders.delete("content-encoding");
     responseHeaders.delete("content-length");
+
+    // Management is served over HTTP — strip Secure flag so browser accepts cookies
+    const setCookies = res.headers.getSetCookie?.() ?? [];
+    if (setCookies.length > 0) {
+      responseHeaders.delete("set-cookie");
+      const nextRes = new NextResponse(body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: responseHeaders,
+      });
+      for (const cookie of setCookies) {
+        nextRes.headers.append(
+          "set-cookie",
+          cookie.replace(/;\s*Secure/gi, "").replace(/;\s*SameSite=Strict/gi, "; SameSite=Lax")
+        );
+      }
+      return nextRes;
+    }
 
     return new NextResponse(body, {
       status: res.status,
