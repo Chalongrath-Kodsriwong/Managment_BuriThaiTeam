@@ -28,6 +28,7 @@ import { UploadedFile } from "../dtos/upload-file.dto";
 import { ProductFormValues } from "../dtos/product.dto";
 import { VariantItemProps } from "../dtos/variant.dto";
 import { createEmptySpecTable } from "../dtos/spec-table.dto";
+import { getTemplateByCategory } from "../dtos/spec-table-templates";
 import { BrandCombobox } from "../components/BrandCombobox";
 import { SpecificationTableEditor } from "../components/SpecificationTableEditor";
 import {
@@ -199,7 +200,7 @@ export default function CreateProduct() {
     },
   });
 
-  const { control } = form;
+  const { control, setValue } = form;
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -589,7 +590,16 @@ export default function CreateProduct() {
                   <FormControl>
                     <Select
                       value={field.value ? String(field.value) : undefined}
-                      onValueChange={(value) => field.onChange(Number(value))}
+                      onValueChange={(value) => {
+                        field.onChange(Number(value));
+                        const cat = categoryData.find(
+                          (c) => String(c.id_category) === value
+                        );
+                        if (cat) {
+                          const template = getTemplateByCategory(cat.name);
+                          if (template) setValue("spec_table", template);
+                        }
+                      }}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select category" />
