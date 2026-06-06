@@ -1,6 +1,6 @@
 "use client";
 
-import { FiMinus, FiPlus } from "react-icons/fi";
+import { FiMinus, FiPlus, FiTrash2 } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -148,12 +148,26 @@ export function SpecificationTableEditor({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={addColumn}>
-          <FiPlus /> Add Column
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={addRow}>
-          <FiPlus /> Add Row
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={addColumn}>
+            <FiPlus /> Add Column
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+            <FiPlus /> Add Row
+          </Button>
+        </div>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={() => {
+            if (window.confirm("ลบหัวข้อและข้อมูลในตารางทั้งหมดใช่ไหม?")) {
+              onChange(createEmptySpecTable());
+            }
+          }}
+        >
+          <FiTrash2 /> Clear All
         </Button>
       </div>
 
