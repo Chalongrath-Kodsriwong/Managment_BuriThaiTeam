@@ -150,21 +150,20 @@ export function SpecificationTableEditor({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={addColumn}>
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="outline" size="default" className="text-sm font-medium px-4" onClick={addColumn}>
             <FiPlus /> Add Column
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          <Button type="button" variant="outline" size="default" className="text-sm font-medium px-4" onClick={addRow}>
             <FiPlus /> Add Row
           </Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+            size="default"
+            className="text-sm font-semibold px-5 bg-emerald-600 hover:bg-emerald-700 text-white border-0 disabled:opacity-40 disabled:bg-emerald-400"
             onClick={onSaveTemplate ?? undefined}
             disabled={!onSaveTemplate}
             title={!onSaveTemplate ? "เลือก Category ก่อนถึงจะบันทึก Format ได้" : "บันทึก Format หัวข้อสำหรับ Category นี้"}
@@ -174,7 +173,8 @@ export function SpecificationTableEditor({
           <Button
             type="button"
             variant="destructive"
-            size="sm"
+            size="default"
+            className="text-sm font-semibold px-5"
             onClick={() => {
               if (window.confirm("ลบหัวข้อและข้อมูลในตารางทั้งหมดใช่ไหม?")) {
                 onChange(createEmptySpecTable());
