@@ -163,7 +163,7 @@ export function SpecificationTableEditor({
           <Button
             type="button"
             size="lg"
-            className="text-base font-bold px-7 h-11 bg-blue-800 hover:bg-blue-900 text-white border-0 disabled:opacity-40 disabled:bg-blue-400"
+            className="text-base font-bold px-7 h-11 !bg-blue-800 hover:!bg-blue-900 !text-white !border-0 disabled:!opacity-50 disabled:!bg-blue-800"
             onClick={onSaveTemplate ?? undefined}
             disabled={!onSaveTemplate}
             title={!onSaveTemplate ? "เลือก Category ก่อนถึงจะบันทึก Format ได้" : "บันทึก Format หัวข้อสำหรับ Category นี้"}
