@@ -64,6 +64,7 @@ export default function ProductDetails() {
   const [inputMode, setInputMode] = useState<ProductInputMode>("variant");
   const [directVariantId, setDirectVariantId] = useState<number | undefined>();
   const [directInventoryId, setDirectInventoryId] = useState<number | undefined>();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   const searchParams = useSearchParams();
   const raw = searchParams.get("categoryData");
@@ -221,6 +222,7 @@ export default function ProductDetails() {
         spec_table: product.spec_table ?? createEmptySpecTable(),
         variants: directVariant ? [] : productVariants,
       });
+      if (product.id_category) setSelectedCategoryId(Number(product.id_category));
 
       setImages(
         product.images.map((img: ProductImage) => ({
@@ -784,9 +786,10 @@ export default function ProductDetails() {
                             value={
                               field.value ? String(field.value) : undefined
                             }
-                            onValueChange={(value) =>
-                              field.onChange(Number(value))
-                            }
+                            onValueChange={(value) => {
+                              field.onChange(Number(value));
+                              setSelectedCategoryId(Number(value));
+                            }}
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder="Select category" />
@@ -817,6 +820,21 @@ export default function ProductDetails() {
                           <SpecificationTableEditor
                             value={field.value}
                             onChange={field.onChange}
+                            onSaveTemplate={
+                              selectedCategoryId
+                                ? () => {
+                                    const current = field.value;
+                                    if (!current) return;
+                                    const templateOnly = {
+                                      firstColumnHeader: current.firstColumnHeader,
+                                      columnHeaders: current.columnHeaders,
+                                      rows: current.rows.map((r) => ({ label: r.label, values: r.values.map(() => "") })),
+                                    };
+                                    localStorage.setItem(`spec_template_${selectedCategoryId}`, JSON.stringify(templateOnly));
+                                    alert("บันทึก Format สำหรับ Category นี้แล้ว");
+                                  }
+                                : undefined
+                            }
                           />
                         </FormControl>
                       </FormItem>
