@@ -142,6 +142,7 @@ export default function CreateProduct() {
   const [inputMode, setInputMode] = useState<ProductInputMode>("variant");
 
   const [categoryData, setCategoryData] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get("categoryData");
@@ -592,12 +593,19 @@ export default function CreateProduct() {
                       value={field.value ? String(field.value) : undefined}
                       onValueChange={(value) => {
                         field.onChange(Number(value));
+                        const catId = Number(value);
+                        setSelectedCategoryId(catId);
                         const cat = categoryData.find(
-                          (c) => String(c.id_category) === value
+                          (c) => c.id_category === catId
                         );
                         if (cat) {
-                          const template = getTemplateByCategory(cat.name);
-                          if (template) setValue("spec_table", template);
+                          const saved = localStorage.getItem(`spec_template_${catId}`);
+                          if (saved) {
+                            try { setValue("spec_table", JSON.parse(saved)); } catch { /* ignore */ }
+                          } else {
+                            const template = getTemplateByCategory(cat.name);
+                            if (template) setValue("spec_table", template);
+                          }
                         }
                       }}
                     >
@@ -630,6 +638,21 @@ export default function CreateProduct() {
                     <SpecificationTableEditor
                       value={field.value}
                       onChange={field.onChange}
+                      onSaveTemplate={
+                        selectedCategoryId
+                          ? () => {
+                              const current = field.value;
+                              if (!current) return;
+                              const templateOnly = {
+                                firstColumnHeader: current.firstColumnHeader,
+                                columnHeaders: current.columnHeaders,
+                                rows: current.rows.map((r) => ({ label: r.label, values: r.values.map(() => "") })),
+                              };
+                              localStorage.setItem(`spec_template_${selectedCategoryId}`, JSON.stringify(templateOnly));
+                              alert(`บันทึก Format สำหรับ Category นี้แล้ว`);
+                            }
+                          : undefined
+                      }
                     />
                   </FormControl>
                 </FormItem>

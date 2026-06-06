@@ -1,6 +1,6 @@
 "use client";
 
-import { FiMinus, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiMinus, FiPlus, FiSave, FiTrash2 } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +19,7 @@ import {
 type SpecificationTableEditorProps = {
   value?: ProductSpecTable | null;
   onChange: (value: ProductSpecTable) => void;
+  onSaveTemplate?: () => void;
 };
 
 const normalizeTable = (value?: ProductSpecTable | null): ProductSpecTable => {
@@ -50,6 +51,7 @@ const normalizeTable = (value?: ProductSpecTable | null): ProductSpecTable => {
 export function SpecificationTableEditor({
   value,
   onChange,
+  onSaveTemplate,
 }: SpecificationTableEditorProps) {
   const table = normalizeTable(value);
 
@@ -157,18 +159,31 @@ export function SpecificationTableEditor({
             <FiPlus /> Add Row
           </Button>
         </div>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          onClick={() => {
-            if (window.confirm("ลบหัวข้อและข้อมูลในตารางทั้งหมดใช่ไหม?")) {
-              onChange(createEmptySpecTable());
-            }
-          }}
-        >
-          <FiTrash2 /> Clear All
-        </Button>
+        <div className="flex gap-2">
+          {onSaveTemplate && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+              onClick={onSaveTemplate}
+            >
+              <FiSave /> บันทึก Format
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("ลบหัวข้อและข้อมูลในตารางทั้งหมดใช่ไหม?")) {
+                onChange(createEmptySpecTable());
+              }
+            }}
+          >
+            <FiTrash2 /> Clear All
+          </Button>
+        </div>
       </div>
 
       <Table className="table-fixed border">
