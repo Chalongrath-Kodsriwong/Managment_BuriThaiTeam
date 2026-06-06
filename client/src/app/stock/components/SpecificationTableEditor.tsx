@@ -19,7 +19,7 @@ import {
 type SpecificationTableEditorProps = {
   value?: ProductSpecTable | null;
   onChange: (value: ProductSpecTable) => void;
-  onSaveTemplate?: () => void;
+  onSaveTemplate?: (() => void) | null;
 };
 
 const normalizeTable = (value?: ProductSpecTable | null): ProductSpecTable => {
@@ -160,17 +160,17 @@ export function SpecificationTableEditor({
           </Button>
         </div>
         <div className="flex gap-2">
-          {onSaveTemplate && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
-              onClick={onSaveTemplate}
-            >
-              <FiSave /> บันทึก Format
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+            onClick={onSaveTemplate ?? undefined}
+            disabled={!onSaveTemplate}
+            title={!onSaveTemplate ? "เลือก Category ก่อนถึงจะบันทึก Format ได้" : "บันทึก Format หัวข้อสำหรับ Category นี้"}
+          >
+            <FiSave /> บันทึก Format
+          </Button>
           <Button
             type="button"
             variant="destructive"
