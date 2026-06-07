@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
+import { useForm, SubmitHandler, useFieldArray, Controller, useWatch } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,107 @@ interface Category {
   name: string;
   parent_id: number | null;
 }
+
+/* ===================== INVENTORY ROW ===================== */
+const PURCHASE_MODE_OPTIONS = [
+  { value: "normal", label: "สั่งซื้อเลยเท่านั้น" },
+  { value: "preorder_only", label: "Preorder เท่านั้น" },
+  { value: "both", label: "Preorder และสั่งซื้อ" },
+] as const;
+
+type InventoryRowProps = {
+  vIndex: number;
+  iIndex: number;
+  invId: string;
+  control: VariantItemProps["control"];
+  register: VariantItemProps["register"];
+  onDelete: () => void;
+};
+
+const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete }: InventoryRowProps) => {
+  const purchaseMode = useWatch({
+    control,
+    name: `variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any,
+    defaultValue: "normal",
+  });
+  const showPreorder = purchaseMode === "preorder_only" || purchaseMode === "both";
+
+  return (
+    <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
+      <div className="flex gap-2 items-center">
+        <Input
+          {...register(`variants.${vIndex}.inventories.${iIndex}.inventory_name`)}
+          placeholder="Inventory name"
+          className="flex-1"
+        />
+        <Input
+          type="number"
+          {...register(`variants.${vIndex}.inventories.${iIndex}.price`, { valueAsNumber: true })}
+          placeholder="Price (฿)"
+          className="w-28"
+        />
+        <Input
+          type="number"
+          {...register(`variants.${vIndex}.inventories.${iIndex}.stock`, { valueAsNumber: true })}
+          placeholder="Stock"
+          className="w-24"
+        />
+        <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
+          <FiMinus />
+        </Button>
+      </div>
+
+      {/* Purchase Mode Toggle */}
+      <div className="flex items-center gap-1 flex-wrap">
+        <span className="text-xs text-gray-500 mr-1">โหมด:</span>
+        <Controller
+          control={control}
+          name={`variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any}
+          defaultValue="normal"
+          render={({ field }) =>
+            PURCHASE_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => field.onChange(opt.value)}
+                className={`px-2 py-1 text-xs rounded border transition-colors ${
+                  field.value === opt.value
+                    ? "!bg-blue-800 hover:!bg-blue-900 !text-white !border-0"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"
+                }`}
+              >
+                {opt.label}
+              </button>
+            )) as any
+          }
+        />
+      </div>
+
+      {/* Preorder Fields */}
+      {showPreorder && (
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลด Preorder %</span>
+            <Input
+              type="number"
+              {...register(`variants.${vIndex}.inventories.${iIndex}.preorder_discount` as any, { valueAsNumber: true })}
+              placeholder="เช่น 15"
+              className="w-24"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500 whitespace-nowrap">วันวางขาย</span>
+            <Input
+              type="date"
+              {...register(`variants.${vIndex}.inventories.${iIndex}.preorder_release_date` as any)}
+              className="w-40"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 /* ===================== VARIANT ITEM ===================== */
 const VariantItem = ({
@@ -84,39 +185,15 @@ const VariantItem = ({
 
       {/* ===== Inventories ===== */}
       {fields.map((inv, iIndex) => (
-        <div key={inv.id} className="flex gap-2 items-center">
-          <Input
-            {...register(
-              `variants.${vIndex}.inventories.${iIndex}.inventory_name`
-            )}
-            placeholder="Inventory"
-          />
-
-          <Input
-            type="number"
-            {...register(`variants.${vIndex}.inventories.${iIndex}.price`, {
-              valueAsNumber: true,
-            })}
-            placeholder="Price"
-          />
-
-          <Input
-            type="number"
-            {...register(`variants.${vIndex}.inventories.${iIndex}.stock`, {
-              valueAsNumber: true,
-            })}
-            placeholder="Stock"
-          />
-
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => onDeleteInventory(vIndex, iIndex, remove)}
-          >
-            <FiMinus />
-          </Button>
-        </div>
+        <InventoryRow
+          key={inv.id}
+          invId={inv.id}
+          vIndex={vIndex}
+          iIndex={iIndex}
+          control={control}
+          register={register}
+          onDelete={() => onDeleteInventory(vIndex, iIndex, remove)}
+        />
       ))}
 
       {/* ===== Add Inventory ===== */}
@@ -124,7 +201,7 @@ const VariantItem = ({
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => append({ inventory_name: "", price: 0, stock: 0 })}
+        onClick={() => append({ inventory_name: "", price: 0, stock: 0, purchase_mode: "normal", preorder_discount: null, preorder_release_date: null })}
       >
         <FiPlus /> Add Inventory
       </Button>

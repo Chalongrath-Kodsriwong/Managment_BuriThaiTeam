@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller, useWatch } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,80 +103,71 @@ export default function ProductDetails() {
 
   /* ===================== VARIANT ITEM ===================== */
 
-  const VariantItem = ({ vIndex, control, register }: VariantItemProps) => {
-    const {
-      fields,
-      append,
-      remove: removeInventory,
-    } = useFieldArray({
-      control,
-      name: `variants.${vIndex}.inventories`,
-    });
+  const PURCHASE_MODE_OPTIONS = [
+    { value: "normal", label: "สั่งซื้อเลยเท่านั้น" },
+    { value: "preorder_only", label: "Preorder เท่านั้น" },
+    { value: "both", label: "Preorder และสั่งซื้อ" },
+  ] as const;
 
+  const InventoryRow = ({ vIndex, iIndex, control: ctrl, register: reg, onDelete }: {
+    vIndex: number; iIndex: number;
+    control: VariantItemProps["control"]; register: VariantItemProps["register"];
+    onDelete: () => void;
+  }) => {
+    const purchaseMode = useWatch({ control: ctrl, name: `variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any, defaultValue: "normal" });
+    const showPreorder = purchaseMode === "preorder_only" || purchaseMode === "both";
+    return (
+      <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
+        <div className="flex gap-2 items-center">
+          <Input {...reg(`variants.${vIndex}.inventories.${iIndex}.inventory_name`)} placeholder="Inventory name" className="flex-1" />
+          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.price`, { valueAsNumber: true })} placeholder="Price (฿)" className="w-28" />
+          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.stock`, { valueAsNumber: true })} placeholder="Stock" className="w-24" />
+          <Button type="button" variant="destructive" size="sm" onClick={onDelete}><FiMinus /></Button>
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs text-gray-500 mr-1">โหมด:</span>
+          <Controller control={ctrl} name={`variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any} defaultValue="normal"
+            render={({ field }) => PURCHASE_MODE_OPTIONS.map((opt) => (
+              <button key={opt.value} type="button" onClick={() => field.onChange(opt.value)}
+                className={`px-2 py-1 text-xs rounded border transition-colors ${field.value === opt.value ? "!bg-blue-800 !text-white !border-0" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+                {opt.label}
+              </button>
+            )) as any}
+          />
+        </div>
+        {showPreorder && (
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลด %</span>
+            <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.preorder_discount` as any, { valueAsNumber: true })} placeholder="เช่น 15" className="w-24" />
+            <span className="text-xs text-gray-500 whitespace-nowrap">วันวางขาย</span>
+            <Input type="date" {...reg(`variants.${vIndex}.inventories.${iIndex}.preorder_release_date` as any)} className="w-40" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const VariantItem = ({ vIndex, control, register }: VariantItemProps) => {
+    const { fields, append, remove: removeInventory } = useFieldArray({ control, name: `variants.${vIndex}.inventories` });
     return (
       <div className="border p-4 rounded-md space-y-4">
-        <FormField
-          control={control}
-          name={`variants.${vIndex}.variant_name`}
+        <FormField control={control} name={`variants.${vIndex}.variant_name`}
           render={({ field }) => (
             <FormItem>
               <div className="flex justify-between items-center">
                 <FormLabel>Variant</FormLabel>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDeleteVariant(vIndex)}
-                >
-                  <FiMinus />
-                </Button>
+                <Button type="button" variant="destructive" size="sm" onClick={() => onDeleteVariant(vIndex)}><FiMinus /></Button>
               </div>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
+              <FormControl><Input {...field} /></FormControl>
             </FormItem>
           )}
         />
-
         {fields.map((inv, iIndex) => (
-          <div key={inv.id} className="flex gap-2">
-            <Input
-              {...register(
-                `variants.${vIndex}.inventories.${iIndex}.inventory_name`
-              )}
-              placeholder="Inventory"
-            />
-            <Input
-              type="number"
-              {...register(`variants.${vIndex}.inventories.${iIndex}.price`, {
-                valueAsNumber: true,
-              })}
-              placeholder="Price"
-            />
-            <Input
-              type="number"
-              {...register(`variants.${vIndex}.inventories.${iIndex}.stock`, {
-                valueAsNumber: true,
-              })}
-              placeholder="Stock"
-            />
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => onDeleteInventory(vIndex, iIndex, removeInventory)}
-            >
-              <FiMinus />
-            </Button>
-          </div>
+          <InventoryRow key={inv.id} vIndex={vIndex} iIndex={iIndex} control={control} register={register}
+            onDelete={() => onDeleteInventory(vIndex, iIndex, removeInventory)} />
         ))}
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => append({ inventory_name: "", price: 0, stock: 0 })}
-        >
+        <Button type="button" variant="outline" size="sm"
+          onClick={() => append({ inventory_name: "", price: 0, stock: 0, purchase_mode: "normal" as any, preorder_discount: null, preorder_release_date: null })}>
           <FiPlus /> Add Inventory
         </Button>
       </div>

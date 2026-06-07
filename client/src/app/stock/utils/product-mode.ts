@@ -8,6 +8,9 @@ type InventoryLike = {
   inventory_name?: string | null;
   price?: number | null;
   stock?: number | null;
+  purchase_mode?: string | null;
+  preorder_discount?: number | null;
+  preorder_release_date?: string | null;
 };
 
 type VariantLike = {
@@ -58,6 +61,9 @@ export const sanitizeVariantsPayload = (variants: VariantLike[] = []) =>
           inventory_name: `${inventory.inventory_name ?? ""}`.trim(),
           price: Number(inventory.price ?? 0),
           stock: Number(inventory.stock ?? 0),
+          purchase_mode: inventory.purchase_mode ?? "normal",
+          preorder_discount: inventory.preorder_discount ?? null,
+          preorder_release_date: inventory.preorder_release_date ?? null,
         }))
         .filter(
           (inventory) =>
