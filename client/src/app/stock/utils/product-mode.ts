@@ -11,6 +11,7 @@ type InventoryLike = {
   purchase_mode?: string | null;
   preorder_discount?: number | null;
   preorder_release_date?: string | null;
+  regular_discount?: number | null;
 };
 
 type VariantLike = {
@@ -30,11 +31,19 @@ export const buildDirectVariantsPayload = ({
   inventoryId,
   price,
   stock,
+  purchaseMode,
+  preorderDiscount,
+  preorderReleaseDate,
+  regularDiscount,
 }: {
   variantId?: number;
   inventoryId?: number;
   price: number;
   stock: number;
+  purchaseMode?: string;
+  preorderDiscount?: number | null;
+  preorderReleaseDate?: string | null;
+  regularDiscount?: number | null;
 }) => [
   {
     ...(variantId ? { variant_id: variantId } : {}),
@@ -45,6 +54,10 @@ export const buildDirectVariantsPayload = ({
         inventory_name: DIRECT_INVENTORY_NAME,
         price,
         stock,
+        purchase_mode: purchaseMode ?? "normal",
+        preorder_discount: preorderDiscount ?? null,
+        preorder_release_date: preorderReleaseDate ?? null,
+        regular_discount: regularDiscount ?? null,
       },
     ],
   },
@@ -64,6 +77,7 @@ export const sanitizeVariantsPayload = (variants: VariantLike[] = []) =>
           purchase_mode: inventory.purchase_mode ?? "normal",
           preorder_discount: inventory.preorder_discount ?? null,
           preorder_release_date: inventory.preorder_release_date ?? null,
+          regular_discount: inventory.regular_discount ?? null,
         }))
         .filter(
           (inventory) =>

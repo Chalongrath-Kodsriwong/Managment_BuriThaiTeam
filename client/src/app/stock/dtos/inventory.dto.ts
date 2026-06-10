@@ -8,6 +8,7 @@ export type Inventory = {
   purchase_mode?: PurchaseMode;
   preorder_discount?: number | null;
   preorder_release_date?: string | null;
+  regular_discount?: number | null;
 };
 
 export type ProductImage = {

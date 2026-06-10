@@ -131,11 +131,11 @@ const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete }:
             />
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-500 whitespace-nowrap">วันวางขาย</span>
+            <span className="text-xs text-gray-500 whitespace-nowrap">วันสิ้นสุด Preorder</span>
             <Input
-              type="date"
+              type="datetime-local"
               {...register(`variants.${vIndex}.inventories.${iIndex}.preorder_release_date` as any)}
-              className="w-40"
+              className="w-52"
             />
           </div>
         </div>

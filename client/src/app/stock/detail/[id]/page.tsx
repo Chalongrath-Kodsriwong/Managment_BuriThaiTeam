@@ -88,6 +88,9 @@ export default function ProductDetails() {
       id_category: "",
       direct_price: 0,
       direct_stock: 0,
+      direct_purchase_mode: "normal",
+      direct_preorder_discount: null,
+      direct_preorder_release_date: null,
       spec_table: createEmptySpecTable(),
       variants: [],
     },
@@ -135,12 +138,16 @@ export default function ProductDetails() {
             )) as any}
           />
         </div>
+        <div className="flex gap-2 items-center">
+          <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลดปกติ %</span>
+          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.regular_discount` as any, { valueAsNumber: true })} placeholder="เช่น 10" className="w-24" />
+        </div>
         {showPreorder && (
           <div className="flex gap-2 items-center">
-            <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลด %</span>
+            <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลด Preorder %</span>
             <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.preorder_discount` as any, { valueAsNumber: true })} placeholder="เช่น 15" className="w-24" />
-            <span className="text-xs text-gray-500 whitespace-nowrap">วันวางขาย</span>
-            <Input type="date" {...reg(`variants.${vIndex}.inventories.${iIndex}.preorder_release_date` as any)} className="w-40" />
+            <span className="text-xs text-gray-500 whitespace-nowrap">วันสิ้นสุด Preorder</span>
+            <Input type="datetime-local" {...reg(`variants.${vIndex}.inventories.${iIndex}.preorder_release_date` as any)} className="w-52" />
           </div>
         )}
       </div>
@@ -167,7 +174,7 @@ export default function ProductDetails() {
             onDelete={() => onDeleteInventory(vIndex, iIndex, removeInventory)} />
         ))}
         <Button type="button" variant="outline" size="sm"
-          onClick={() => append({ inventory_name: "", price: 0, stock: 0, purchase_mode: "normal" as any, preorder_discount: null, preorder_release_date: null })}>
+          onClick={() => append({ inventory_name: "", price: 0, stock: 0, purchase_mode: "normal" as any, preorder_discount: null, preorder_release_date: null, regular_discount: null })}>
           <FiPlus /> Add Inventory
         </Button>
       </div>
@@ -210,8 +217,23 @@ export default function ProductDetails() {
         id_category: product.id_category,
         direct_price: directInventory?.price ?? 0,
         direct_stock: directInventory?.stock ?? 0,
+        direct_purchase_mode: directInventory?.purchase_mode ?? "normal",
+        direct_preorder_discount: directInventory?.preorder_discount ?? null,
+        direct_preorder_release_date: directInventory?.preorder_release_date
+          ? new Date(directInventory.preorder_release_date).toISOString().slice(0, 16)
+          : null,
         spec_table: product.spec_table ?? createEmptySpecTable(),
-        variants: directVariant ? [] : productVariants,
+        variants: directVariant
+          ? []
+          : productVariants.map((v: any) => ({
+              ...v,
+              inventories: (v.inventories ?? []).map((inv: any) => ({
+                ...inv,
+                preorder_release_date: inv.preorder_release_date
+                  ? new Date(inv.preorder_release_date).toISOString().slice(0, 16)
+                  : null,
+              })),
+            })),
       });
       if (product.id_category) setSelectedCategoryId(Number(product.id_category));
 
@@ -266,6 +288,10 @@ export default function ProductDetails() {
           inventoryId: directInventoryId,
           price: directPrice,
           stock: directStock,
+          purchaseMode: values.direct_purchase_mode ?? "normal",
+          preorderDiscount: values.direct_preorder_discount ?? null,
+          preorderReleaseDate: values.direct_preorder_release_date ?? null,
+          regularDiscount: (values as any).direct_regular_discount ?? null,
         });
       }
 
@@ -724,6 +750,38 @@ export default function ProductDetails() {
                       </FormItem>
                     )}
                   />
+
+                  {/* Purchase Mode (direct mode only) */}
+                  {inputMode === "direct" && (
+                    <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                      <p className="text-sm font-medium">โหมดการขาย</p>
+                      <Controller control={control} name={"direct_purchase_mode" as any} defaultValue="normal"
+                        render={({ field }) => (
+                          <div className="flex gap-2 flex-wrap">
+                            {[
+                              { value: "normal", label: "สั่งซื้อเลยเท่านั้น" },
+                              { value: "preorder_only", label: "Preorder เท่านั้น" },
+                              { value: "both", label: "Preorder และสั่งซื้อ" },
+                            ].map((opt) => (
+                              <button key={opt.value} type="button" onClick={() => field.onChange(opt.value)}
+                                className={`px-3 py-1.5 text-sm rounded border transition-colors ${field.value === opt.value ? "bg-blue-800 text-white border-transparent" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      />
+                      {(watch("direct_purchase_mode") === "preorder_only" || watch("direct_purchase_mode") === "both") && (
+                        <div className="flex gap-3 items-center flex-wrap">
+                          <span className="text-sm text-gray-500">ส่วนลด %</span>
+                          <Input type="number" {...form.register("direct_preorder_discount" as any, { valueAsNumber: true })} placeholder="เช่น 15" className="w-24" />
+                          <span className="text-sm text-gray-500">วันสิ้นสุด Preorder</span>
+                          <Input type="datetime-local" {...form.register("direct_preorder_release_date" as any)} className="w-52" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <FormField
                     control={control}
                     name="brand"

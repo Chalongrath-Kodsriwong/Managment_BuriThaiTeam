@@ -10,6 +10,9 @@ export type ProductFormValues = {
   id_category: string;
   direct_price?: number;
   direct_stock?: number;
+  direct_purchase_mode?: string;
+  direct_preorder_discount?: number | null;
+  direct_preorder_release_date?: string | null;
   spec_table?: ProductSpecTable | null;
   variants: ProductVariant[];
 };

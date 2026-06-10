@@ -11,19 +11,20 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { 
-  Home, 
-  ShoppingCart, 
-  Box, 
-  Image, 
-  User, 
+import {
+  Home,
+  ShoppingCart,
+  Box,
+  Image,
+  User,
   Shield,
   CircleDollarSign,
   TextSearch,
   Bell,
   LogOut,
-  MonitorCog
-} from "lucide-react"; 
+  MonitorCog,
+  Tag,
+} from "lucide-react";
 
 
 interface SidebarComponentProps {
@@ -43,6 +44,7 @@ const menuItems = [
   { href: "/line-notification", label: "LINE Notification", icon: <Bell className="w-5 h-5 mr-2" /> },
   { href: "/simulator-config", label: "Simulator Config", icon: <MonitorCog className="w-5 h-5 mr-2" /> },
   { href: "/achievement", label: "Achievement", icon: <TextSearch className="w-5 h-5 mr-2" /> },
+  { href: "/discount", label: "Discount", icon: <Tag className="w-5 h-5 mr-2" /> },
 ];
 
 export function SidebarComponent({ children }: SidebarComponentProps) {
