@@ -9,6 +9,7 @@ export type Inventory = {
   preorder_discount?: number | null;
   preorder_release_date?: string | null;
   regular_discount?: number | null;
+  regular_discount_end_date?: string | null;
 };
 
 export type ProductImage = {

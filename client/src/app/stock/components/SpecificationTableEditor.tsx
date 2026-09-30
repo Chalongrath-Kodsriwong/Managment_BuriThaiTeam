@@ -1,6 +1,7 @@
 "use client";
 
-import { FiMinus, FiPlus, FiSave, FiTrash2 } from "react-icons/fi";
+import { useState } from "react";
+import { FiMinus, FiPlus, FiSave, FiTrash2, FiMenu } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -54,6 +55,10 @@ export function SpecificationTableEditor({
   onSaveTemplate,
 }: SpecificationTableEditorProps) {
   const table = normalizeTable(value);
+
+  // แถวที่กำลังลาก และแถวที่เมาส์อยู่เหนือ (ใช้วาดเส้นบอกตำแหน่งที่จะวาง)
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const updateTable = (nextTable: ProductSpecTable) => {
     onChange(normalizeTable(nextTable));
@@ -130,6 +135,20 @@ export function SpecificationTableEditor({
       ...table,
       rows: [...table.rows, { label: "", values: table.columnHeaders.map(() => "") }],
     });
+  };
+
+  /**
+   * สลับลำดับแถว — ลากที่ไอคอน ☰ หน้าแต่ละหัวข้อ
+   *
+   * ใช้ HTML5 drag ในตัวเบราว์เซอร์ ไม่ต้องลง library เพิ่ม
+   * ตั้ง draggable ไว้ที่ตัวจับอย่างเดียว ไม่ใช่ทั้งแถว ไม่งั้นจะลากตอนเลือกข้อความในช่องกรอกไม่ได้
+   */
+  const moveRow = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= table.rows.length) return;
+    const rows = [...table.rows];
+    const [moved] = rows.splice(from, 1);
+    rows.splice(to, 0, moved);
+    updateTable({ ...table, rows });
   };
 
   const removeRow = (rowIndex: number) => {
@@ -227,9 +246,48 @@ export function SpecificationTableEditor({
 
         <TableBody>
           {table.rows.map((row, rowIndex) => (
-            <TableRow key={`row-${rowIndex}`}>
+            <TableRow
+              key={`row-${rowIndex}`}
+              onDragOver={(e) => {
+                if (dragIndex === null) return;
+                e.preventDefault();          // ไม่ preventDefault เบราว์เซอร์จะไม่ยอมให้วาง
+                setOverIndex(rowIndex);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIndex !== null) moveRow(dragIndex, rowIndex);
+                setDragIndex(null);
+                setOverIndex(null);
+              }}
+              className={
+                dragIndex === rowIndex
+                  ? "opacity-40"
+                  : overIndex === rowIndex && dragIndex !== null
+                    ? "bg-blue-50 outline outline-2 outline-blue-400"
+                    : ""
+              }
+            >
               <TableCell className="align-top whitespace-normal">
                 <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => {
+                      setDragIndex(rowIndex);
+                      e.dataTransfer.effectAllowed = "move";
+                      // Firefox ต้องมีข้อมูลใน dataTransfer ไม่งั้นไม่เริ่มลาก
+                      e.dataTransfer.setData("text/plain", String(rowIndex));
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setOverIndex(null);
+                    }}
+                    title="กดค้างแล้วลากเพื่อสลับลำดับหัวข้อ"
+                    aria-label={`ลากเพื่อย้ายลำดับแถวที่ ${rowIndex + 1}`}
+                    className="mt-1 flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded border border-slate-300 bg-white text-slate-500 transition-colors hover:border-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing"
+                  >
+                    <FiMenu className="h-4 w-4" />
+                  </button>
                   <Input
                     value={row.label}
                     onChange={(event) =>

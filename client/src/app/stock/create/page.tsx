@@ -35,7 +35,13 @@ import {
   buildDirectVariantsPayload,
   ProductInputMode,
   sanitizeVariantsPayload,
+  purchaseModeHint,
 } from "../utils/product-mode";
+import {
+  BLANK_NUMBER_WARNING,
+  blankFieldClass,
+  useBlankNumberFields,
+} from "../utils/blank-number-fields";
 
 interface Category {
   id_category: number;
@@ -50,6 +56,11 @@ const PURCHASE_MODE_OPTIONS = [
   { value: "both", label: "Preorder และสั่งซื้อ" },
 ] as const;
 
+type BlankFieldHelpers = {
+  isBlankField: (name: string) => boolean;
+  clearBlankField: (name: string) => void;
+};
+
 type InventoryRowProps = {
   vIndex: number;
   iIndex: number;
@@ -57,15 +68,21 @@ type InventoryRowProps = {
   control: VariantItemProps["control"];
   register: VariantItemProps["register"];
   onDelete: () => void;
-};
+} & BlankFieldHelpers;
 
-const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete }: InventoryRowProps) => {
+const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete, isBlankField, clearBlankField }: InventoryRowProps) => {
   const purchaseMode = useWatch({
     control,
     name: `variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any,
     defaultValue: "normal",
   });
   const showPreorder = purchaseMode === "preorder_only" || purchaseMode === "both";
+
+  // ช่องราคา/จำนวน — เว้นว่างแล้วกด Save จะถูกเติม 0 และขึ้นกรอบแดง
+  const priceName = `variants.${vIndex}.inventories.${iIndex}.price`;
+  const stockName = `variants.${vIndex}.inventories.${iIndex}.stock`;
+  const priceField = register(priceName as any, { valueAsNumber: true });
+  const stockField = register(stockName as any, { valueAsNumber: true });
 
   return (
     <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
@@ -77,20 +94,29 @@ const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete }:
         />
         <Input
           type="number"
-          {...register(`variants.${vIndex}.inventories.${iIndex}.price`, { valueAsNumber: true })}
+          {...priceField}
+          onChange={(event) => { priceField.onChange(event); clearBlankField(priceName); }}
           placeholder="Price (฿)"
-          className="w-28"
+          aria-invalid={isBlankField(priceName)}
+          className={`w-28 ${blankFieldClass(isBlankField(priceName))}`}
         />
         <Input
           type="number"
-          {...register(`variants.${vIndex}.inventories.${iIndex}.stock`, { valueAsNumber: true })}
+          {...stockField}
+          onChange={(event) => { stockField.onChange(event); clearBlankField(stockName); }}
           placeholder="Stock"
-          className="w-24"
+          aria-invalid={isBlankField(stockName)}
+          className={`w-24 ${blankFieldClass(isBlankField(stockName))}`}
         />
         <Button type="button" variant="destructive" size="sm" onClick={onDelete}>
           <FiMinus />
         </Button>
       </div>
+      {(isBlankField(priceName) || isBlankField(stockName)) && (
+        <p className="text-[11px] font-semibold text-red-600">
+          ⚠️ ช่องที่ขึ้นกรอบแดงถูกเว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — ตรวจสอบแล้วกด Save อีกครั้ง
+        </p>
+      )}
 
       {/* Purchase Mode Toggle */}
       <div className="flex items-center gap-1 flex-wrap">
@@ -117,6 +143,8 @@ const InventoryRow = ({ vIndex, iIndex, invId: _, control, register, onDelete }:
           }
         />
       </div>
+
+      <p className="text-[11px] text-gray-500 leading-snug">ℹ️ {purchaseModeHint(purchaseMode as string)}</p>
 
       {/* Preorder Fields */}
       {showPreorder && (
@@ -151,7 +179,9 @@ const VariantItem = ({
   register,
   onDeleteVariant,
   onDeleteInventory,
-}: VariantItemProps) => {
+  isBlankField,
+  clearBlankField,
+}: VariantItemProps & BlankFieldHelpers) => {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `variants.${vIndex}.inventories`,
@@ -192,6 +222,8 @@ const VariantItem = ({
           iIndex={iIndex}
           control={control}
           register={register}
+          isBlankField={isBlankField}
+          clearBlankField={clearBlankField}
           onDelete={() => onDeleteInventory(vIndex, iIndex, remove)}
         />
       ))}
@@ -215,8 +247,15 @@ export default function CreateProduct() {
   const router = useRouter();
   const [images, setImages] = useState<UploadedFile[]>([]);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inputMode, setInputMode] = useState<ProductInputMode>("variant");
+  const {
+    isBlankField,
+    clearBlankField,
+    resetBlankFields,
+    collectBlankFields,
+  } = useBlankNumberFields();
 
   const [categoryData, setCategoryData] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -359,6 +398,29 @@ export default function CreateProduct() {
       return;
     }
 
+    // เว้นว่างไว้ = เติม 0 ให้ ขึ้นกรอบแดง แล้วหยุด ไม่ส่ง NaN ขึ้น API
+    const numericEntries =
+      inputMode === "variant"
+        ? (data.variants ?? []).flatMap((variant: any, vIndex: number) =>
+            (variant?.inventories ?? []).flatMap((inventory: any, iIndex: number) => [
+              { name: `variants.${vIndex}.inventories.${iIndex}.price`, value: inventory?.price },
+              { name: `variants.${vIndex}.inventories.${iIndex}.stock`, value: inventory?.stock },
+            ])
+          )
+        : [
+            { name: "direct_price", value: data.direct_price },
+            { name: "direct_stock", value: data.direct_stock },
+          ];
+
+    const blanks = collectBlankFields(numericEntries, (name, value) =>
+      form.setValue(name as any, value as any, { shouldDirty: true })
+    );
+    if (blanks.length > 0) {
+      setWarning(BLANK_NUMBER_WARNING);
+      return;
+    }
+    resetBlankFields();
+
     const sanitizedVariants = sanitizeVariantsPayload(data.variants);
     const directPrice = Number(data.direct_price ?? 0);
     const directStock = Number(data.direct_stock ?? 0);
@@ -449,6 +511,38 @@ export default function CreateProduct() {
 
   return (
     <Form {...form}>
+      {/* popup เตือนช่องที่เว้นว่าง — ต้องกดรับทราบ จะได้ไม่พลาด */}
+      {warning && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setWarning(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none">⚠️</span>
+              <div className="flex-1">
+                <h2 className="mb-1 text-lg font-bold text-red-600">
+                  ยังบันทึกไม่ได้
+                </h2>
+                <p className="text-sm leading-relaxed text-gray-700">{warning}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              className="mt-5 w-full"
+              onClick={() => setWarning(null)}
+            >
+              รับทราบ
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Button type="button" variant="outline" onClick={() => router.back()}>
         <FiArrowLeft /> Back
       </Button>
@@ -640,7 +734,7 @@ export default function CreateProduct() {
                 <FormItem>
                   <FormLabel>Short Description</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -794,6 +888,8 @@ export default function CreateProduct() {
                     register={form.register}
                     onDeleteVariant={onDeleteVariant}
                     onDeleteInventory={onDeleteInventory}
+                    isBlankField={isBlankField}
+                    clearBlankField={clearBlankField}
                   />
                 ))}
 
@@ -830,12 +926,21 @@ export default function CreateProduct() {
                           <Input
                             type="number"
                             min={0}
-                            value={field.value ?? 0}
-                            onChange={(event) =>
-                              field.onChange(Number(event.target.value))
-                            }
+                            value={field.value ?? ""}
+                            aria-invalid={isBlankField("direct_price")}
+                            className={blankFieldClass(isBlankField("direct_price"))}
+                            onChange={(event) => {
+                              const raw = event.target.value;
+                              field.onChange(raw === "" ? "" : Number(raw));
+                              clearBlankField("direct_price");
+                            }}
                           />
                         </FormControl>
+                        {isBlankField("direct_price") && (
+                          <p className="text-[11px] font-semibold text-red-600">
+                            ⚠️ เว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — กด Create อีกครั้งเพื่อยืนยัน
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -850,12 +955,21 @@ export default function CreateProduct() {
                           <Input
                             type="number"
                             min={0}
-                            value={field.value ?? 0}
-                            onChange={(event) =>
-                              field.onChange(Number(event.target.value))
-                            }
+                            value={field.value ?? ""}
+                            aria-invalid={isBlankField("direct_stock")}
+                            className={blankFieldClass(isBlankField("direct_stock"))}
+                            onChange={(event) => {
+                              const raw = event.target.value;
+                              field.onChange(raw === "" ? "" : Number(raw));
+                              clearBlankField("direct_stock");
+                            }}
                           />
                         </FormControl>
+                        {isBlankField("direct_stock") && (
+                          <p className="text-[11px] font-semibold text-red-600">
+                            ⚠️ เว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — กด Create อีกครั้งเพื่อยืนยัน
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -863,9 +977,19 @@ export default function CreateProduct() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Creating..." : "Create Product"}
-            </Button>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => router.back()}
+              >
+                <FiArrowLeft /> Back
+              </Button>
+              <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Product"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

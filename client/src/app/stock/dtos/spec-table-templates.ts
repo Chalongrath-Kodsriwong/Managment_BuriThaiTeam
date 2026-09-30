@@ -105,7 +105,32 @@ export const SPEC_TABLE_TEMPLATES: Record<string, ProductSpecTable> = {
   ]),
 };
 
+/**
+ * ชื่อหมวดในฐานข้อมูลไม่ตรงกับ key ของ template เป๊ะทุกอัน
+ * เช่น หมวด "LED" เก็บสินค้าจอ LED Module ซึ่งใช้ template "module"
+ * และหมวด "Sender card" ควรได้ template "sender"
+ */
+const CATEGORY_ALIASES: Record<string, string> = {
+  led: "module",
+  "led module": "module",
+  "sender card": "sender",
+  receiver: "receiver card",
+};
+
 export function getTemplateByCategory(categoryName: string): ProductSpecTable | null {
-  const key = categoryName.toLowerCase().trim();
-  return SPEC_TABLE_TEMPLATES[key] ?? null;
+  const key = (categoryName ?? "").toLowerCase().trim();
+  if (!key) return null;
+
+  // 1) ตรงเป๊ะ
+  if (SPEC_TABLE_TEMPLATES[key]) return SPEC_TABLE_TEMPLATES[key];
+
+  // 2) ชื่อที่รู้ว่าเรียกต่างกัน
+  const alias = CATEGORY_ALIASES[key];
+  if (alias && SPEC_TABLE_TEMPLATES[alias]) return SPEC_TABLE_TEMPLATES[alias];
+
+  // 3) ชื่อหมวดขึ้นต้นด้วย key ของ template (เช่น "processor card" → "processor")
+  const prefix = Object.keys(SPEC_TABLE_TEMPLATES).find(
+    (k) => key === k || key.startsWith(`${k} `)
+  );
+  return prefix ? SPEC_TABLE_TEMPLATES[prefix] : null;
 }

@@ -16,6 +16,7 @@ export interface StockItem {
     id_products: number;
     name: string;
     quality: string;
+    is_published: boolean;
     category: {
         name: string
     }
@@ -40,6 +41,7 @@ export interface InventoryItems{
     inventory_name: string;
     price: number;
     stock: number;
+    purchase_mode?: string | null;
 }
 
 type StockRow = {
@@ -55,5 +57,7 @@ type StockRow = {
     inventory_name: string;
     price: number;
     stock: number;
+    purchase_mode?: string | null;
+    is_published: boolean;   // แสดงสินค้านี้บนหน้าเว็บหรือไม่ (เป็นค่าของ "สินค้า" ไม่ใช่ของ inventory)
   };
 

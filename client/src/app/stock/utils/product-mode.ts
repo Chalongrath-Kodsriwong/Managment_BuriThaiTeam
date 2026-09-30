@@ -12,6 +12,7 @@ type InventoryLike = {
   preorder_discount?: number | null;
   preorder_release_date?: string | null;
   regular_discount?: number | null;
+  regular_discount_end_date?: string | null;
 };
 
 type VariantLike = {
@@ -35,6 +36,7 @@ export const buildDirectVariantsPayload = ({
   preorderDiscount,
   preorderReleaseDate,
   regularDiscount,
+  regularDiscountEndDate,
 }: {
   variantId?: number;
   inventoryId?: number;
@@ -44,6 +46,7 @@ export const buildDirectVariantsPayload = ({
   preorderDiscount?: number | null;
   preorderReleaseDate?: string | null;
   regularDiscount?: number | null;
+  regularDiscountEndDate?: string | null;
 }) => [
   {
     ...(variantId ? { variant_id: variantId } : {}),
@@ -58,6 +61,7 @@ export const buildDirectVariantsPayload = ({
         preorder_discount: preorderDiscount ?? null,
         preorder_release_date: preorderReleaseDate ?? null,
         regular_discount: regularDiscount ?? null,
+        regular_discount_end_date: regularDiscountEndDate || null,
       },
     ],
   },
@@ -78,6 +82,7 @@ export const sanitizeVariantsPayload = (variants: VariantLike[] = []) =>
           preorder_discount: inventory.preorder_discount ?? null,
           preorder_release_date: inventory.preorder_release_date ?? null,
           regular_discount: inventory.regular_discount ?? null,
+          regular_discount_end_date: inventory.regular_discount_end_date ?? null,
         }))
         .filter(
           (inventory) =>
@@ -90,3 +95,22 @@ export const sanitizeVariantsPayload = (variants: VariantLike[] = []) =>
       (variant) =>
         variant.variant_name.length > 0 || variant.inventories.length > 0
     );
+
+/**
+ * คำอธิบายว่า "โหมดการขาย" แต่ละแบบ ลูกค้าจะเห็นอะไรบนหน้าเว็บเมื่อสต็อก = 0
+ * ใช้โชว์ใต้ปุ่มเลือกโหมด เพื่อให้คนดูแลสต็อกตัดสินใจได้โดยไม่ต้องเดา
+ */
+export const purchaseModeHint = (mode?: string | null) => {
+  switch (mode) {
+    case "preorder_only":
+      return "ลูกค้าสั่งจองล่วงหน้าได้อย่างเดียว (ไม่สนใจจำนวนสต็อก) หน้าเว็บจะขึ้นราคา Preorder ตลอด";
+    case "both":
+      return "มีของ = ซื้อได้ทันที · ของหมด = หน้าเว็บขึ้นป้าย SOLD OUT สีแดง + \"ยังสั่งจองล่วงหน้าได้\" ลูกค้ากดเข้าไป Preorder ต่อได้";
+    default:
+      return "ขายเฉพาะของที่มีในคลัง · ของหมด = หน้าเว็บขึ้นป้าย SOLD OUT สีเทา รูปเป็นขาวดำ และลูกค้าสั่งซื้อไม่ได้";
+  }
+};
+
+/** ของหมดแล้วยังสั่งจองได้หรือไม่ (ใช้ตัดสินสถานะในตาราง Stock) */
+export const canPreorderWhenEmpty = (mode?: string | null) =>
+  mode === "both" || mode === "preorder_only";

@@ -43,7 +43,8 @@ import {
 import Image from "next/image";
 import DeleteButton from "@/components/deleteButton";
 import { CategoryData, CategoryResponse } from "@/types/category";
-import { DIRECT_INVENTORY_NAME } from "./utils/product-mode";
+import { DIRECT_INVENTORY_NAME, canPreorderWhenEmpty } from "./utils/product-mode";
+import { Switch } from "@/components/ui/switch";
 
 export default function StockPage() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -107,6 +108,8 @@ export default function StockPage() {
             inventory_name: inv.inventory_name || DIRECT_INVENTORY_NAME,
             price: inv.price,
             stock: inv.stock,
+            purchase_mode: inv.purchase_mode ?? "normal",
+            is_published: product.is_published !== false,  // ของเดิมที่ยังไม่มีค่า ให้ถือว่าเปิด
           }));
         });
       });
@@ -125,6 +128,38 @@ export default function StockPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ── เปิด/ปิดการแสดงสินค้าบนหน้าเว็บ ──
+  const [publishBusyId, setPublishBusyId] = useState<number | null>(null);
+
+  const togglePublished = async (productId: number, next: boolean) => {
+    setPublishBusyId(productId);
+    setError("");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/published`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ is_published: next }),
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.message || "เปลี่ยนสถานะไม่สำเร็จ");
+
+      // ตารางแตกแถวตาม inventory — สินค้าเดียวอาจมีหลายแถว ต้องอัปเดตให้ครบทุกแถว
+      setStockRows((prev) =>
+        prev.map((r) =>
+          r.product_id === productId ? { ...r, is_published: next } : r
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "เปลี่ยนสถานะไม่สำเร็จ");
+    } finally {
+      setPublishBusyId(null);
+    }
+  };
 
   const columns: ColumnDef<StockRow>[] = [
     {
@@ -252,25 +287,80 @@ export default function StockPage() {
       id: "status",
       header: "Status",
       size: 120,
+      // สถานะคิดจากสต็อก + โหมดการขาย เพราะ "หมด" ไม่ได้แปลว่าลูกค้าซื้อไม่ได้เสมอไป
       accessorFn: (row) => {
-        if (row.stock === 0) return "OutOfStock";
+        const canPreorder = canPreorderWhenEmpty(row.purchase_mode);
+        if (row.purchase_mode === "preorder_only") return "PreorderOnly";
+        if (row.stock === 0) return canPreorder ? "SoldOutPreorder" : "OutOfStock";
         if (row.stock < 20) return "LowStock";
         return "InStock";
       },
       cell: ({ getValue }) => {
         const status = getValue<string>();
-        const colorMap: Record<string, string> = {
-          LowStock: "bg-yellow-500 text-white",
-          InStock: "bg-green-700 text-white",
-          OutOfStock: "bg-red-700 text-white",
+        const styleMap: Record<string, { color: string; label: string; hint: string }> = {
+          InStock: {
+            color: "bg-green-700 text-white",
+            label: "In Stock",
+            hint: "มีของ ลูกค้าซื้อได้ทันที",
+          },
+          LowStock: {
+            color: "bg-yellow-500 text-white",
+            label: "Low Stock",
+            hint: "ของใกล้หมด (น้อยกว่า 20 ชิ้น)",
+          },
+          SoldOutPreorder: {
+            color: "bg-amber-600 text-white",
+            label: "Sold Out · Preorder",
+            hint: "ของหมด แต่หน้าเว็บยังให้ลูกค้าสั่งจองล่วงหน้าได้",
+          },
+          PreorderOnly: {
+            color: "bg-indigo-700 text-white",
+            label: "Preorder Only",
+            hint: "ขายแบบสั่งจองอย่างเดียว ไม่สนใจจำนวนสต็อก",
+          },
+          OutOfStock: {
+            color: "bg-red-700 text-white",
+            label: "Out Of Stock",
+            hint: "ของหมด และลูกค้าสั่งซื้อไม่ได้ (โหมด: สั่งซื้อเลยเท่านั้น)",
+          },
         };
+        const s = styleMap[status] ?? styleMap.OutOfStock;
 
         return (
           <div className="flex justify-center">
             <span
-              className={`px-3 py-1 rounded-full text-xs font-medium ${colorMap[status]}`}
+              title={s.hint}
+              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${s.color}`}
             >
-              {status.replace(/([A-Z])/g, " $1").trim()}
+              {s.label}
+            </span>
+          </div>
+        );
+      },
+    },
+
+    // ✅ แสดงบนเว็บหรือไม่ — ค่านี้เป็นของ "สินค้า" ไม่ใช่ของ inventory
+    {
+      id: "published",
+      header: "แสดงบนเว็บ",
+      size: 130,
+      cell: ({ row }) => {
+        const r = row.original;
+        const busy = publishBusyId === r.product_id;
+        return (
+          <div className="flex flex-col items-center gap-1">
+            <Switch
+              checked={r.is_published}
+              disabled={busy}
+              onCheckedChange={(next) => togglePublished(r.product_id, next)}
+              aria-label={`แสดง ${r.product_name} บนหน้าเว็บ`}
+            />
+            <span
+              className={`text-[10px] font-semibold ${
+                r.is_published ? "text-green-700" : "text-gray-400"
+              }`}
+            >
+              {r.is_published ? "แสดงอยู่" : "ซ่อนอยู่"}
             </span>
           </div>
         );

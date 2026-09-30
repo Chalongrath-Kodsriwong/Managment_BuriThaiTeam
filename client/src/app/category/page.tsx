@@ -38,6 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import CreateDialog from "./components/CreateDialog";
 import UpdateDialog from "./components/UpdateDialog";
 import DeleteButton from "@/components/deleteButton";
+import HomeDisplayPanel from "./components/HomeDisplayPanel";
 
 
 export default function Page() {
@@ -367,6 +368,9 @@ export default function Page() {
           mapCategory={data?.data ?? null}
         />
       </Card>
+
+      {/* ตั้งค่าหมวดหมู่ที่จะโชว์บนหน้าแรกของเว็บหลัก */}
+      <HomeDisplayPanel />
     </SidebarComponent>
   );
 }

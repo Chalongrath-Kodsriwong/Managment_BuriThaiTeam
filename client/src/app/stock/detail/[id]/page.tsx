@@ -33,6 +33,7 @@ import { ProductFormValues } from "../../dtos/product.dto";
 import { VariantItemProps } from "../../dtos/variant.dto";
 import { ProductImage } from "../../dtos/inventory.dto";
 import { createEmptySpecTable } from "../../dtos/spec-table.dto";
+import { getTemplateByCategory } from "../../dtos/spec-table-templates";
 import { BrandCombobox } from "../../components/BrandCombobox";
 import { SpecificationTableEditor } from "../../components/SpecificationTableEditor";
 import {
@@ -41,7 +42,14 @@ import {
   isDirectVariant,
   ProductInputMode,
   sanitizeVariantsPayload,
+  purchaseModeHint,
 } from "../../utils/product-mode";
+import {
+  BLANK_NUMBER_WARNING,
+  blankFieldClass,
+  useBlankNumberFields,
+} from "../../utils/blank-number-fields";
+import ProductDownloadsPanel from "../../components/ProductDownloadsPanel";
 
 interface Category {
   id_category: number;
@@ -56,7 +64,9 @@ export default function ProductDetails() {
   const params = useParams<{ id: string }>();
 
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [images, setImages] = useState<UploadedFile[]>([]);
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
   const [deletingIds, setDeletingIds] = useState<number[]>([]);
@@ -89,6 +99,8 @@ export default function ProductDetails() {
       direct_price: 0,
       direct_stock: 0,
       direct_purchase_mode: "normal",
+      direct_regular_discount: null,
+      direct_regular_discount_end_date: null,
       direct_preorder_discount: null,
       direct_preorder_release_date: null,
       spec_table: createEmptySpecTable(),
@@ -97,6 +109,12 @@ export default function ProductDetails() {
   });
 
   const { control, reset, setValue, watch } = form;
+  const {
+    isBlankField,
+    clearBlankField,
+    resetBlankFields,
+    collectBlankFields,
+  } = useBlankNumberFields();
   const selectedQuality = parseQuality(watch("quality"));
 
   const { fields, append, remove } = useFieldArray({
@@ -119,14 +137,40 @@ export default function ProductDetails() {
   }) => {
     const purchaseMode = useWatch({ control: ctrl, name: `variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any, defaultValue: "normal" });
     const showPreorder = purchaseMode === "preorder_only" || purchaseMode === "both";
+
+    // ช่องราคา/จำนวน ถ้าถูกทำเครื่องหมายว่าเว้นว่างตอนกด Save จะขึ้นกรอบแดงจนกว่าจะพิมพ์ใหม่
+    const priceName = `variants.${vIndex}.inventories.${iIndex}.price`;
+    const stockName = `variants.${vIndex}.inventories.${iIndex}.stock`;
+    const priceField = reg(priceName as any, { valueAsNumber: true });
+    const stockField = reg(stockName as any, { valueAsNumber: true });
+
     return (
       <div className="border rounded-lg p-3 space-y-2 bg-gray-50">
         <div className="flex gap-2 items-center">
           <Input {...reg(`variants.${vIndex}.inventories.${iIndex}.inventory_name`)} placeholder="Inventory name" className="flex-1" />
-          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.price`, { valueAsNumber: true })} placeholder="Price (฿)" className="w-28" />
-          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.stock`, { valueAsNumber: true })} placeholder="Stock" className="w-24" />
+          <Input
+            type="number"
+            {...priceField}
+            onChange={(event) => { priceField.onChange(event); clearBlankField(priceName); }}
+            placeholder="Price (฿)"
+            aria-invalid={isBlankField(priceName)}
+            className={`w-28 ${blankFieldClass(isBlankField(priceName))}`}
+          />
+          <Input
+            type="number"
+            {...stockField}
+            onChange={(event) => { stockField.onChange(event); clearBlankField(stockName); }}
+            placeholder="Stock"
+            aria-invalid={isBlankField(stockName)}
+            className={`w-24 ${blankFieldClass(isBlankField(stockName))}`}
+          />
           <Button type="button" variant="destructive" size="sm" onClick={onDelete}><FiMinus /></Button>
         </div>
+        {(isBlankField(priceName) || isBlankField(stockName)) && (
+          <p className="text-[11px] font-semibold text-red-600">
+            ⚠️ ช่องที่ขึ้นกรอบแดงถูกเว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — ตรวจสอบแล้วกด Save อีกครั้ง
+          </p>
+        )}
         <div className="flex items-center gap-1 flex-wrap">
           <span className="text-xs text-gray-500 mr-1">โหมด:</span>
           <Controller control={ctrl} name={`variants.${vIndex}.inventories.${iIndex}.purchase_mode` as any} defaultValue="normal"
@@ -138,10 +182,17 @@ export default function ProductDetails() {
             )) as any}
           />
         </div>
-        <div className="flex gap-2 items-center">
-          <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลดปกติ %</span>
-          <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.regular_discount` as any, { valueAsNumber: true })} placeholder="เช่น 10" className="w-24" />
-        </div>
+        <p className="text-[11px] text-gray-500 leading-snug">ℹ️ {purchaseModeHint(purchaseMode as string)}</p>
+        {/* ส่วนลดปกติ — ซ่อนเมื่อเป็น "Preorder เท่านั้น" เพราะขายปกติไม่ได้ */}
+        {purchaseMode !== "preorder_only" && (
+          <div className="flex gap-2 items-center flex-wrap">
+            <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลดปกติ %</span>
+            <Input type="number" {...reg(`variants.${vIndex}.inventories.${iIndex}.regular_discount` as any, { valueAsNumber: true })} placeholder="เช่น 10" className="w-24" />
+            <span className="text-xs text-gray-500 whitespace-nowrap">ลดถึงวันที่</span>
+            <Input type="datetime-local" {...reg(`variants.${vIndex}.inventories.${iIndex}.regular_discount_end_date` as any)} className="w-52" />
+            <span className="text-[11px] text-gray-400">เว้นว่าง = ไม่มีกำหนด</span>
+          </div>
+        )}
         {showPreorder && (
           <div className="flex gap-2 items-center">
             <span className="text-xs text-gray-500 whitespace-nowrap">ส่วนลด Preorder %</span>
@@ -183,8 +234,8 @@ export default function ProductDetails() {
 
   /* ===================== FETCH ===================== */
   // Fetch Normal
-  const fetchData = React.useCallback(async () => {
-    setLoading(true);
+  const fetchData = React.useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
 
     try {
@@ -218,6 +269,10 @@ export default function ProductDetails() {
         direct_price: directInventory?.price ?? 0,
         direct_stock: directInventory?.stock ?? 0,
         direct_purchase_mode: directInventory?.purchase_mode ?? "normal",
+        direct_regular_discount: directInventory?.regular_discount ?? null,
+        direct_regular_discount_end_date: directInventory?.regular_discount_end_date
+          ? new Date(directInventory.regular_discount_end_date).toISOString().slice(0, 16)
+          : null,
         direct_preorder_discount: directInventory?.preorder_discount ?? null,
         direct_preorder_release_date: directInventory?.preorder_release_date
           ? new Date(directInventory.preorder_release_date).toISOString().slice(0, 16)
@@ -247,14 +302,87 @@ export default function ProductDetails() {
         }))
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [params.id, reset]);
 
   //Submit Form Update
+  /**
+   * โหลด Format ตารางสเปคของหมวดที่เลือก
+   *
+   * หน้า Create ทำแบบนี้อยู่แล้ว แต่หน้าแก้ไขไม่เคยมี — สินค้าที่สร้างไปแล้ว
+   * โดยไม่ได้กรอกตาราง เลยไม่มีทางได้ฟอร์มขึ้นมาเลย
+   *
+   * ต่างจากหน้า Create ตรงที่นี่อาจมีข้อมูลเดิมอยู่ จึงต้องกันไม่ให้ทับของเก่าเงียบๆ
+   *   ตารางว่าง  → ใส่ Format ให้ทันที
+   *   มีข้อมูล   → ถามก่อน
+   */
+  const isSpecTableEmpty = (t: any) => {
+    const rows = t?.rows;
+    if (!Array.isArray(rows) || rows.length === 0) return true;
+    return rows.every(
+      (r: any) =>
+        !`${r?.label ?? ""}`.trim() &&
+        (r?.values ?? []).every((v: any) => !`${v ?? ""}`.trim())
+    );
+  };
+
+  const applyCategoryTemplate = (catId: number) => {
+    const cat = categoryData.find((c) => c.id_category === catId);
+    if (!cat) return;
+
+    // Format ที่แอดมินบันทึกเองมาก่อน template ที่ติดมากับโค้ด
+    let template: any = null;
+    try {
+      const saved = localStorage.getItem(`spec_template_${catId}`);
+      if (saved) template = JSON.parse(saved);
+    } catch {
+      /* อ่านไม่ได้ก็ตกไปใช้ template ปกติ */
+    }
+    if (!template) template = getTemplateByCategory(cat.name ?? "");
+    if (!template) return; // หมวดนี้ยังไม่มี Format — ปล่อยตารางไว้เหมือนเดิม
+
+    const current = form.getValues("spec_table");
+    if (!isSpecTableEmpty(current)) {
+      const ok = window.confirm(
+        `ตารางสเปคของสินค้านี้มีข้อมูลอยู่แล้ว\n\nต้องการแทนที่ด้วย Format ของหมวด "${cat.name}" หรือไม่?\n(ข้อมูลเดิมในตารางจะหายไป)`
+      );
+      if (!ok) return;
+    }
+
+    setValue("spec_table", template, { shouldDirty: true });
+  };
+
+  /** ช่องราคา/จำนวนทั้งหมดที่ต้องตรวจก่อนบันทึก ตามโหมดที่ใช้อยู่ */
+  const collectNumericEntries = (values: ProductFormValues) => {
+    if (inputMode !== "variant") {
+      return [
+        { name: "direct_price", value: values.direct_price },
+        { name: "direct_stock", value: values.direct_stock },
+      ];
+    }
+    return (values.variants ?? []).flatMap((variant: any, vIndex: number) =>
+      (variant?.inventories ?? []).flatMap((inventory: any, iIndex: number) => [
+        { name: `variants.${vIndex}.inventories.${iIndex}.price`, value: inventory?.price },
+        { name: `variants.${vIndex}.inventories.${iIndex}.stock`, value: inventory?.stock },
+      ])
+    );
+  };
+
   const onSubmit = async (values: ProductFormValues) => {
-    setLoading(true);
-    setError("");
+    // เว้นว่างไว้ = เติม 0 ให้ ขึ้นกรอบแดง แล้วหยุดไว้ก่อน ไม่บันทึกทับของเดิมด้วย NaN
+    const blanks = collectBlankFields(
+      collectNumericEntries(values),
+      (name, value) => setValue(name as any, value as any, { shouldDirty: true })
+    );
+    if (blanks.length > 0) {
+      setWarning(BLANK_NUMBER_WARNING);
+      return;
+    }
+
+    setWarning(null);
+    resetBlankFields();
+    setSaving(true);
     try {
       const sanitizedVariants = sanitizeVariantsPayload(values.variants);
       const directPrice = Number(values.direct_price ?? 0);
@@ -270,7 +398,7 @@ export default function ProductDetails() {
         }
 
         if (!window.confirm("ต้องการใส่ข้อมูลที่ Variant ใช่มั้ย")) {
-          setLoading(false);
+          setSaving(false);
           return;
         }
       } else {
@@ -279,7 +407,7 @@ export default function ProductDetails() {
         }
 
         if (!window.confirm("ต้องการใส่ข้อมูลโดยไม่ใช้ Variant ใช่มั้ย")) {
-          setLoading(false);
+          setSaving(false);
           return;
         }
 
@@ -291,7 +419,8 @@ export default function ProductDetails() {
           purchaseMode: values.direct_purchase_mode ?? "normal",
           preorderDiscount: values.direct_preorder_discount ?? null,
           preorderReleaseDate: values.direct_preorder_release_date ?? null,
-          regularDiscount: (values as any).direct_regular_discount ?? null,
+          regularDiscount: values.direct_regular_discount ?? null,
+          regularDiscountEndDate: values.direct_regular_discount_end_date ?? null,
         });
       }
 
@@ -314,16 +443,16 @@ export default function ProductDetails() {
       if (!res.ok) {
         throw new Error(await res.text());
       }
-      await fetchData();
+      await fetchData({ silent: true });
     } catch (submitError) {
       console.error("Update product error:", submitError);
-      setError(
+      setWarning(
         submitError instanceof Error
           ? submitError.message
           : "Failed to update product"
       );
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -522,6 +651,38 @@ export default function ProductDetails() {
   /* ===================== UI ===================== */
   return (
     <>
+      {/* popup เตือนช่องที่เว้นว่าง — ปิดเองไม่ได้ ต้องกดรับทราบ จะได้ไม่พลาด */}
+      {warning && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setWarning(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none">⚠️</span>
+              <div className="flex-1">
+                <h2 className="mb-1 text-lg font-bold text-red-600">
+                  ยังบันทึกไม่ได้
+                </h2>
+                <p className="text-sm leading-relaxed text-gray-700">{warning}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              className="mt-5 w-full"
+              onClick={() => setWarning(null)}
+            >
+              รับทราบ
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Button variant="outline" onClick={() => router.back()}>
         <FiArrowLeft /> Back
       </Button>
@@ -771,9 +932,24 @@ export default function ProductDetails() {
                           </div>
                         )}
                       />
+                      {/* บอกให้ชัดว่าโหมดนี้ ลูกค้าจะเห็นอะไรตอนของหมด */}
+                      <p className="text-xs text-blue-900/70 bg-white/70 border border-blue-100 rounded px-2 py-1.5">
+                        ℹ️ {purchaseModeHint(watch("direct_purchase_mode") as string)}
+                      </p>
+                      {/* ส่วนลดปกติ — เฉพาะโหมดที่ขายปกติได้ (ไม่ใช่ Preorder เท่านั้น) */}
+                      {watch("direct_purchase_mode") !== "preorder_only" && (
+                        <div className="flex gap-3 items-center flex-wrap">
+                          <span className="text-sm text-gray-500 whitespace-nowrap">ส่วนลดปกติ %</span>
+                          <Input type="number" {...form.register("direct_regular_discount", { valueAsNumber: true })} placeholder="เช่น 10" className="w-24" />
+                          <span className="text-sm text-gray-500 whitespace-nowrap">ลดถึงวันที่</span>
+                          <Input type="datetime-local" {...form.register("direct_regular_discount_end_date")} className="w-52" />
+                          <span className="text-xs text-gray-400">เว้นว่าง = ไม่มีกำหนด</span>
+                        </div>
+                      )}
+
                       {(watch("direct_purchase_mode") === "preorder_only" || watch("direct_purchase_mode") === "both") && (
                         <div className="flex gap-3 items-center flex-wrap">
-                          <span className="text-sm text-gray-500">ส่วนลด %</span>
+                          <span className="text-sm text-gray-500">ส่วนลด Preorder %</span>
                           <Input type="number" {...form.register("direct_preorder_discount" as any, { valueAsNumber: true })} placeholder="เช่น 15" className="w-24" />
                           <span className="text-sm text-gray-500">วันสิ้นสุด Preorder</span>
                           <Input type="datetime-local" {...form.register("direct_preorder_release_date" as any)} className="w-52" />
@@ -805,7 +981,7 @@ export default function ProductDetails() {
                       <FormItem>
                         <FormLabel>Short Description</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <Textarea {...field} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -837,7 +1013,9 @@ export default function ProductDetails() {
                             }
                             onValueChange={(value) => {
                               field.onChange(Number(value));
-                              setSelectedCategoryId(Number(value));
+                              const catId = Number(value);
+                              setSelectedCategoryId(catId);
+                              applyCategoryTemplate(catId);
                             }}
                           >
                             <SelectTrigger className="w-full">
@@ -1031,12 +1209,21 @@ export default function ProductDetails() {
                                 <Input
                                   type="number"
                                   min={0}
-                                  value={field.value ?? 0}
-                                  onChange={(event) =>
-                                    field.onChange(Number(event.target.value))
-                                  }
+                                  value={field.value ?? ""}
+                                  aria-invalid={isBlankField("direct_price")}
+                                  className={blankFieldClass(isBlankField("direct_price"))}
+                                  onChange={(event) => {
+                                    const raw = event.target.value;
+                                    field.onChange(raw === "" ? "" : Number(raw));
+                                    clearBlankField("direct_price");
+                                  }}
                                 />
                               </FormControl>
+                              {isBlankField("direct_price") && (
+                                <p className="text-[11px] font-semibold text-red-600">
+                                  ⚠️ เว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — กด Save อีกครั้งเพื่อยืนยัน
+                                </p>
+                              )}
                             </FormItem>
                           )}
                         />
@@ -1051,23 +1238,45 @@ export default function ProductDetails() {
                                 <Input
                                   type="number"
                                   min={0}
-                                  value={field.value ?? 0}
-                                  onChange={(event) =>
-                                    field.onChange(Number(event.target.value))
-                                  }
+                                  value={field.value ?? ""}
+                                  aria-invalid={isBlankField("direct_stock")}
+                                  className={blankFieldClass(isBlankField("direct_stock"))}
+                                  onChange={(event) => {
+                                    const raw = event.target.value;
+                                    field.onChange(raw === "" ? "" : Number(raw));
+                                    clearBlankField("direct_stock");
+                                  }}
                                 />
                               </FormControl>
+                              {isBlankField("direct_stock") && (
+                                <p className="text-[11px] font-semibold text-red-600">
+                                  ⚠️ เว้นว่างไว้ ระบบใส่ 0 ให้แล้ว — กด Save อีกครั้งเพื่อยืนยัน
+                                </p>
+                              )}
                             </FormItem>
                           )}
                         />
                       </div>
                     </div>
                   )}
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Saving..." : "Save"}
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => router.back()}
+                    >
+                      <FiArrowLeft /> Back
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={saving}>
+                      {saving ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
                 </form>
               </Form>
+
+              {/* ไฟล์ดาวน์โหลด — RCG / Software Config / Document */}
+              <ProductDownloadsPanel productId={String(params.id)} />
             </div>
           )}
         </CardContent>
