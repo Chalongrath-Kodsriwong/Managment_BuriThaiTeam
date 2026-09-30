@@ -13,8 +13,13 @@ const PROTECTED_PREFIXES = [
   "/category",
   "/payment",
   "/line-notification",
-  "/achievement", // ✅ เพิ่มบรรทัดนี้
+  "/achievement",
+  "/discount",
+  "/simulator-config",
 ];
+
+// ⚠️ เพิ่มหน้าใหม่ในแอปแล้วต้องมาเติมที่นี่ด้วย ไม่งั้นหน้านั้นเปิดได้โดยไม่ต้องล็อกอิน
+// (/discount กับ /simulator-config เคยตกหล่นไป เจอตอนไล่เช็ค 30 ก.ย. 2026)
 
 export const middleware = async (req: NextRequest) => {
   const token = req.cookies.get("token")?.value;
