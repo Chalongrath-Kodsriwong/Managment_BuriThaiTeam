@@ -240,7 +240,9 @@ export default function ProductDetails() {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/products/${params.id}`,
+        // ใช้ /manage ไม่ใช่ /:id เฉยๆ เพราะ /:id กรองสินค้าที่ซ่อนไว้ออก
+        // ถ้าใช้ตัวเดิม พอกดซ่อนสินค้าแล้วจะเปิดหน้านี้ไม่ได้ ฟอร์มจะว่างเปล่า
+        `${process.env.NEXT_PUBLIC_API_URL}/products/${params.id}/manage`,
         { credentials: "include" }
       );
 
