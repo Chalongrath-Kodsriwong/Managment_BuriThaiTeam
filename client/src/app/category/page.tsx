@@ -53,7 +53,10 @@ export default function Page() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
 
   const [page, setPage] = useState(1);
-  const limit = 20;
+  // ดึงมาทั้งหมดครั้งเดียว แล้วให้ตารางแบ่งหน้าเอง — เหตุผลเดียวกับหน้า Stock
+  // ถ้าปล่อยให้เซิร์ฟเวอร์แบ่งหน้าแต่ตารางคำนวณจำนวนหน้าจากแถวที่โหลดมาแล้ว
+  // หมวดที่เกินลิมิตจะหายไปจากหน้าจอโดยไม่มีปุ่มให้กดดูต่อ
+  const limit = 1000;
 
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);

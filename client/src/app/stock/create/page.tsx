@@ -278,7 +278,7 @@ export default function CreateProduct() {
     const fetchCategories = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/category?page=1&limit=100`,
+          `${process.env.NEXT_PUBLIC_API_URL}/category?page=1&limit=1000`,
           {
             method: "GET",
             credentials: "include",
