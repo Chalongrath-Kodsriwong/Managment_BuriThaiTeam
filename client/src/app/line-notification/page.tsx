@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type {
+  LineDeliveryTargetItem,
+  LineDeliveryTargetsResponse,
   LineNotificationConfigItem,
   LineNotificationListResponse,
   LineNotificationPayload,
@@ -38,6 +40,8 @@ const defaultForm: LineNotificationPayload = {
 
 export default function LineNotificationPage() {
   const [configs, setConfigs] = React.useState<LineNotificationConfigItem[]>([]);
+  const [targets, setTargets] = React.useState<LineDeliveryTargetItem[]>([]);
+  const [targetsLoading, setTargetsLoading] = React.useState(true);
   const [selectedIds, setSelectedIds] = React.useState<number[]>([]);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [form, setForm] = React.useState<LineNotificationPayload>(defaultForm);
@@ -71,9 +75,30 @@ export default function LineNotificationPage() {
     }
   }, []);
 
+  /**
+   * ตารางด้านล่างแสดงเฉพาะ config ที่เก็บในฐานข้อมูล
+   * แต่ของจริงยังมีปลายทางที่มาจากไฟล์ตั้งค่าเซิร์ฟเวอร์ซ้อนอยู่อีก
+   * ถ้าไม่ดึงมาแสดง คนดูจะนึกว่ามีปลายทางเดียว แล้วงงว่าทำไมบางคนได้แจ้งเตือน
+   */
+  const fetchTargets = React.useCallback(async () => {
+    setTargetsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/line-notification/targets`, {
+        credentials: "include",
+      });
+      const data: LineDeliveryTargetsResponse = await res.json();
+      if (res.ok) setTargets(data.data ?? []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTargetsLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     fetchConfigs();
-  }, [fetchConfigs]);
+    fetchTargets();
+  }, [fetchConfigs, fetchTargets]);
 
   const resetForm = React.useCallback(() => {
     setEditingId(null);
@@ -135,6 +160,7 @@ export default function LineNotificationPage() {
       resetForm();
       setSelectedIds([]);
       await fetchConfigs();
+      await fetchTargets();
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Save failed");
@@ -321,6 +347,87 @@ export default function LineNotificationPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* ปลายทางจริง — ของที่คนเปิดหน้านี้อยากรู้ที่สุดคือ "แจ้งเตือนไปถึงใคร"
+            จึงวางไว้เหนือตาราง config ซึ่งเป็นรายละเอียดเชิงเทคนิค */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>ตอนนี้แจ้งเตือนส่งไปหาใครบ้าง</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              รวมปลายทางทั้งหมดที่ระบบใช้จริง ทั้งที่ตั้งค่าในหน้านี้และที่ตั้งไว้ในเซิร์ฟเวอร์
+            </p>
+          </CardHeader>
+          <CardContent>
+            {targetsLoading ? (
+              <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                <LoaderIcon className="h-4 w-4 animate-spin" />
+                กำลังตรวจสอบกับ LINE...
+              </div>
+            ) : targets.length === 0 ? (
+              <p className="py-6 text-sm font-semibold text-red-500">
+                ไม่มีปลายทางเลย — ตอนนี้แจ้งเตือนออเดอร์ไม่ถึงใครทั้งนั้น
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {targets.map((t) => (
+                  <div
+                    key={`${t.source}-${t.target_id}`}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
+                  >
+                    {t.picture_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={t.picture_url}
+                        alt=""
+                        className="h-11 w-11 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-xs font-bold">
+                        {t.target_type === "USER" ? "คน" : "กลุ่ม"}
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">
+                        {t.display_name ?? "(ดึงชื่อไม่ได้)"}
+                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal">
+                          {t.target_type === "USER"
+                            ? "ส่งหาคนเดียว"
+                            : t.member_count != null
+                              ? `กลุ่ม · ${t.member_count} คนเห็น`
+                              : "กลุ่ม"}
+                        </span>
+                      </p>
+                      <p className="break-all text-[11px] text-muted-foreground">
+                        {t.target_id}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {t.source === "database"
+                          ? "ตั้งค่าจากหน้านี้ — แก้ได้เอง"
+                          : "ตั้งค่าในเซิร์ฟเวอร์ — หน้านี้แก้ไม่ได้"}
+                      </p>
+                    </div>
+
+                    <div className="text-right text-xs">
+                      {!t.reachable && (
+                        <p className="font-bold text-red-500">
+                          ติดต่อไม่ได้ — แจ้งเตือนจะไม่ถึง
+                        </p>
+                      )}
+                      <p>{t.notify_new_order ? "ออเดอร์ใหม่ ✓" : "ออเดอร์ใหม่ ✕"}</p>
+                      <p>{t.notify_payment ? "จ่ายเงิน ✓" : "จ่ายเงิน ✕"}</p>
+                    </div>
+                  </div>
+                ))}
+
+                <p className="text-[11px] text-muted-foreground">
+                  หมายเหตุ: LINE ไม่เปิดให้ดูรายชื่อสมาชิกในกลุ่มเป็นรายคน
+                  ดูได้แค่จำนวน — ถ้าต้องการรู้ว่าใครอยู่บ้าง ให้เปิดกลุ่มในแอป LINE
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

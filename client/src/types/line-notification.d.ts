@@ -32,3 +32,23 @@ export interface LineNotificationPayload {
   notify_new_order: boolean;
   notify_payment: boolean;
 }
+
+/** ปลายทางจริงที่จะได้รับแจ้งเตือน รวมที่มาจาก env ไม่ใช่แค่ในฐานข้อมูล */
+export interface LineDeliveryTargetItem {
+  name: string;
+  source: "database" | "env";
+  target_type: LineTargetType;
+  target_id: string;
+  notify_new_order: boolean;
+  notify_payment: boolean;
+  display_name: string | null;
+  picture_url: string | null;
+  member_count: number | null;
+  reachable: boolean;
+  error?: string;
+}
+
+export interface LineDeliveryTargetsResponse {
+  status: "success" | "error";
+  data: LineDeliveryTargetItem[];
+}
