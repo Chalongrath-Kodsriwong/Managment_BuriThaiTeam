@@ -30,7 +30,8 @@ import {
 } from "@/components/ui/pagination";
 import { SidebarComponent } from "../components/Sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpDown, LoaderIcon } from "lucide-react";
+import { ArrowUpDown, LoaderIcon, ChevronDown } from "lucide-react";
+import OrderItemsRow from "./components/OrderItemsRow";
 import { ClientOnlyDate } from "@/app/components/ClientOnlyDate";
 import { Input } from "@/components/ui/input";
 import {
@@ -53,6 +54,16 @@ export default function OrderManagement() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  // เก็บเป็น Set เพราะเปิดดูหลายออเดอร์พร้อมกันได้ ไม่ต้องปิดอันเก่าก่อน
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+
+  const toggleExpanded = React.useCallback((sku: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(sku) ? next.delete(sku) : next.add(sku);
+      return next;
+    });
+  }, []);
   const [page, setPage] = useState(1);
   const limit = 20;
 
@@ -82,6 +93,7 @@ export default function OrderManagement() {
           tracking_number: order.tracking_number ?? "-",
 
           slipImage: order.payment?.slip_img ?? null,
+          items: order.order_items ?? [],
         })
       );
 
@@ -120,6 +132,33 @@ export default function OrderManagement() {
         />
       ),
       enableSorting: false,
+    },
+    {
+      id: "expander",
+      header: "",
+      size: 40,
+      cell: ({ row }) => {
+        const sku = row.original.sku;
+        const count = row.original.items?.length ?? 0;
+        const open = expanded.has(sku);
+
+        // ออเดอร์ที่ไม่มีรายการสินค้าไม่ต้องมีปุ่มให้กด กดแล้วเจอที่ว่างทำให้งง
+        if (!count) return null;
+
+        return (
+          <button
+            onClick={() => toggleExpanded(sku)}
+            aria-label={open ? "ย่อรายการสินค้า" : "กางดูรายการสินค้า"}
+            aria-expanded={open}
+            className="grid h-7 w-7 place-items-center rounded hover:bg-muted"
+          >
+            <ChevronDown
+              className="h-4 w-4 transition-transform"
+              style={{ transform: open ? "rotate(180deg)" : "none" }}
+            />
+          </button>
+        );
+      },
     },
     {
       accessorKey: "sku",
@@ -332,16 +371,29 @@ export default function OrderManagement() {
                   <TableBody>
                     {table.getRowModel().rows.length > 0
                       ? table.getRowModel().rows.map((row) => (
-                          <TableRow key={row.id}>
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell key={cell.id} className="text-center">
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
+                          <React.Fragment key={row.id}>
+                            <TableRow>
+                              {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id} className="text-center">
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+
+                            {expanded.has(row.original.sku) && (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell
+                                  colSpan={row.getVisibleCells().length}
+                                  className="p-0"
+                                >
+                                  <OrderItemsRow items={row.original.items} />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                         ))
                       : !loading && (
                           <TableRow>

@@ -18,12 +18,27 @@ export interface OrdersData {
   orders: OrderDetails[];
 }
 
+/** สินค้าแต่ละรายการในออเดอร์ ใช้ตอนกางดูในตาราง */
+export interface OrderItemDetail {
+  id_orderitem: number;
+  product_id: number;
+  name: string;
+  image_url: string | null;
+  variant_name: string | null;
+  inventory_name: string | null;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  is_preorder: boolean;
+}
+
 export interface OrderDetails {
   id_order: number;
   created_at: string;
   status: "pending" | "confirmed" | "checking"  | "success" | "canceled";
   user: OrderUser;
   order_items_count: number;
+  order_items: OrderItemDetail[];
   dynamic_total_price: number;
   payment: OrderPayment | null;
   tracking_number: string | null;
@@ -68,5 +83,5 @@ export type OrderInterface = {
   paymentPayloadId?: string | null;
   paymentStatus: "pending" | "confirmed" | "checking"  | "success" | "canceled";
   slipImage: PaymentSlipImage | null;
-
+  items: OrderItemDetail[];
 };
