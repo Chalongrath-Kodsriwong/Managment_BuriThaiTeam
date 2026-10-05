@@ -9,6 +9,7 @@ export interface LineNotificationConfigItem {
   is_active: boolean;
   notify_new_order: boolean;
   notify_payment: boolean;
+  notify_shipped: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +32,7 @@ export interface LineNotificationPayload {
   is_active: boolean;
   notify_new_order: boolean;
   notify_payment: boolean;
+  notify_shipped: boolean;
 }
 
 /** ปลายทางจริงที่จะได้รับแจ้งเตือน รวมที่มาจาก env ไม่ใช่แค่ในฐานข้อมูล */
@@ -43,6 +45,7 @@ export interface LineDeliveryTargetItem {
   target_id: string;
   notify_new_order: boolean;
   notify_payment: boolean;
+  notify_shipped: boolean;
   display_name: string | null;
   picture_url: string | null;
   member_count: number | null;

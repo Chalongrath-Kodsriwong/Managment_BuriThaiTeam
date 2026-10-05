@@ -38,6 +38,7 @@ const defaultForm: LineNotificationPayload = {
   is_active: true,
   notify_new_order: true,
   notify_payment: true,
+  notify_shipped: true,
 };
 
 export default function LineNotificationPage() {
@@ -123,7 +124,7 @@ export default function LineNotificationPage() {
   const toggleTargetFlag = React.useCallback(
     async (
       configId: number,
-      field: "notify_new_order" | "notify_payment",
+      field: "notify_new_order" | "notify_payment" | "notify_shipped",
       value: boolean
     ) => {
       setBusyId(`${configId}-${field}`);
@@ -211,6 +212,7 @@ export default function LineNotificationPage() {
       is_active: item.is_active,
       notify_new_order: item.notify_new_order,
       notify_payment: item.notify_payment,
+      notify_shipped: item.notify_shipped,
     });
     setSuccess("");
     setError("");
@@ -403,6 +405,16 @@ export default function LineNotificationPage() {
                   />
                   <Label>แจ้งเตือนเมื่อลูกค้าจ่ายเงิน</Label>
                 </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={form.notify_shipped}
+                    onCheckedChange={(checked) =>
+                      handleChange("notify_shipped", checked)
+                    }
+                  />
+                  <Label>แจ้งเตือนเมื่อจัดส่ง (พร้อมเลขพัสดุ)</Label>
+                </div>
               </div>
 
               {error && <p className="text-sm text-red-500">{error}</p>}
@@ -515,6 +527,7 @@ export default function LineNotificationPage() {
                         <>
                           <p>{t.notify_new_order ? "ออเดอร์ใหม่ ✓" : "ออเดอร์ใหม่ ✕"}</p>
                           <p>{t.notify_payment ? "จ่ายเงิน ✓" : "จ่ายเงิน ✕"}</p>
+                          <p>{t.notify_shipped ? "จัดส่ง ✓" : "จัดส่ง ✕"}</p>
                           <p className="text-[11px] text-muted-foreground">
                             แก้จากหน้านี้ไม่ได้
                           </p>
@@ -538,6 +551,16 @@ export default function LineNotificationPage() {
                               disabled={busyId === `${t.config_id}-notify_payment`}
                               onCheckedChange={(v) =>
                                 toggleTargetFlag(t.config_id!, "notify_payment", v)
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span>จัดส่ง</span>
+                            <Switch
+                              checked={t.notify_shipped}
+                              disabled={busyId === `${t.config_id}-notify_shipped`}
+                              onCheckedChange={(v) =>
+                                toggleTargetFlag(t.config_id!, "notify_shipped", v)
                               }
                             />
                           </div>
