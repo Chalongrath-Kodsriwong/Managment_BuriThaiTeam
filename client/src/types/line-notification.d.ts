@@ -8,6 +8,7 @@ export interface LineNotificationConfigItem {
   target_id: string;
   is_active: boolean;
   notify_new_order: boolean;
+  notify_payment: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,4 +30,5 @@ export interface LineNotificationPayload {
   target_id: string;
   is_active: boolean;
   notify_new_order: boolean;
+  notify_payment: boolean;
 }

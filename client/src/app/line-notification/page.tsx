@@ -33,6 +33,7 @@ const defaultForm: LineNotificationPayload = {
   target_id: "",
   is_active: true,
   notify_new_order: true,
+  notify_payment: true,
 };
 
 export default function LineNotificationPage() {
@@ -88,6 +89,7 @@ export default function LineNotificationPage() {
       target_id: item.target_id,
       is_active: item.is_active,
       notify_new_order: item.notify_new_order,
+      notify_payment: item.notify_payment,
     });
     setSuccess("");
     setError("");
@@ -268,7 +270,17 @@ export default function LineNotificationPage() {
                       handleChange("notify_new_order", checked)
                     }
                   />
-                  <Label>Notify new order</Label>
+                  <Label>แจ้งเตือนเมื่อมีออเดอร์ใหม่ (ยังไม่จ่าย)</Label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={form.notify_payment}
+                    onCheckedChange={(checked) =>
+                      handleChange("notify_payment", checked)
+                    }
+                  />
+                  <Label>แจ้งเตือนเมื่อลูกค้าจ่ายเงิน</Label>
                 </div>
               </div>
 
@@ -383,7 +395,8 @@ export default function LineNotificationPage() {
                           {"*".repeat(Math.max(8, item.channel_access_token.length > 12 ? 12 : item.channel_access_token.length))}
                         </td>
                         <td className="p-3">
-                          <div>{item.notify_new_order ? "new order on" : "new order off"}</div>
+                          <div>{item.notify_new_order ? "ออเดอร์ใหม่ ✓" : "ออเดอร์ใหม่ ✕"}</div>
+                          <div>{item.notify_payment ? "จ่ายเงิน ✓" : "จ่ายเงิน ✕"}</div>
                         </td>
                       </tr>
                     ))}
