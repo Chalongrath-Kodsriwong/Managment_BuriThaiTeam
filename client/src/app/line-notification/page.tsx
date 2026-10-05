@@ -20,6 +20,8 @@ import {
 import type {
   LineDeliveryTargetItem,
   LineDeliveryTargetsResponse,
+  LineKnownSourceItem,
+  LineKnownSourcesResponse,
   LineNotificationConfigItem,
   LineNotificationListResponse,
   LineNotificationPayload,
@@ -42,6 +44,8 @@ export default function LineNotificationPage() {
   const [configs, setConfigs] = React.useState<LineNotificationConfigItem[]>([]);
   const [targets, setTargets] = React.useState<LineDeliveryTargetItem[]>([]);
   const [targetsLoading, setTargetsLoading] = React.useState(true);
+  const [knownSources, setKnownSources] = React.useState<LineKnownSourceItem[]>([]);
+  const [busyId, setBusyId] = React.useState<string | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<number[]>([]);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [form, setForm] = React.useState<LineNotificationPayload>(defaultForm);
@@ -95,10 +99,102 @@ export default function LineNotificationPage() {
     }
   }, []);
 
+  const fetchKnownSources = React.useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/line-notification/known-sources`, {
+        credentials: "include",
+      });
+      const data: LineKnownSourcesResponse = await res.json();
+      if (res.ok) setKnownSources(data.data ?? []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const refreshAll = React.useCallback(async () => {
+    await Promise.all([fetchConfigs(), fetchTargets(), fetchKnownSources()]);
+  }, [fetchConfigs, fetchTargets, fetchKnownSources]);
+
   React.useEffect(() => {
-    fetchConfigs();
-    fetchTargets();
-  }, [fetchConfigs, fetchTargets]);
+    refreshAll();
+  }, [refreshAll]);
+
+  /** เปิด/ปิดแจ้งเตือนรายคน โดยไม่ต้องเข้าไปแก้ฟอร์มทั้งก้อน */
+  const toggleTargetFlag = React.useCallback(
+    async (
+      configId: number,
+      field: "notify_new_order" | "notify_payment",
+      value: boolean
+    ) => {
+      setBusyId(`${configId}-${field}`);
+      setError("");
+      try {
+        const res = await fetch(`${API_URL}/line-notification/${configId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ [field]: value }),
+        });
+        if (!res.ok) throw new Error("update failed");
+        await refreshAll();
+      } catch (err) {
+        console.error(err);
+        setError("เปลี่ยนการตั้งค่าไม่สำเร็จ");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [refreshAll]
+  );
+
+  /** เอาออกจากรายชื่อผู้รับ — ไม่ได้ลบคนออกจาก LINE แค่เลิกส่งแจ้งเตือนให้ */
+  const removeTarget = React.useCallback(
+    async (configId: number) => {
+      if (!confirm("เลิกส่งแจ้งเตือนให้ปลายทางนี้ใช่มั้ย")) return;
+      setBusyId(`${configId}-remove`);
+      setError("");
+      try {
+        const res = await fetch(`${API_URL}/line-notification`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ ids: [configId] }),
+        });
+        if (!res.ok) throw new Error("delete failed");
+        await refreshAll();
+      } catch (err) {
+        console.error(err);
+        setError("เอาออกไม่สำเร็จ");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [refreshAll]
+  );
+
+  /** เพิ่มคนจากสมุดรายชื่อเป็นผู้รับแจ้งเตือน */
+  const promoteSource = React.useCallback(
+    async (sourceId: number) => {
+      setBusyId(`src-${sourceId}`);
+      setError("");
+      try {
+        const res = await fetch(
+          `${API_URL}/line-notification/known-sources/${sourceId}/promote`,
+          { method: "POST", credentials: "include" }
+        );
+        const body = await res.json();
+        if (!res.ok) throw new Error(body?.message || "promote failed");
+        setSuccess("เพิ่มเป็นผู้รับแจ้งเตือนแล้ว");
+        await refreshAll();
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "เพิ่มไม่สำเร็จ");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [refreshAll]
+  );
 
   const resetForm = React.useCallback(() => {
     setEditingId(null);
@@ -159,8 +255,7 @@ export default function LineNotificationPage() {
       );
       resetForm();
       setSelectedIds([]);
-      await fetchConfigs();
-      await fetchTargets();
+      await refreshAll();
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Save failed");
@@ -408,14 +503,55 @@ export default function LineNotificationPage() {
                       </p>
                     </div>
 
-                    <div className="text-right text-xs">
+                    <div className="flex flex-col items-end gap-1.5 text-xs">
                       {!t.reachable && (
                         <p className="font-bold text-red-500">
                           ติดต่อไม่ได้ — แจ้งเตือนจะไม่ถึง
                         </p>
                       )}
-                      <p>{t.notify_new_order ? "ออเดอร์ใหม่ ✓" : "ออเดอร์ใหม่ ✕"}</p>
-                      <p>{t.notify_payment ? "จ่ายเงิน ✓" : "จ่ายเงิน ✕"}</p>
+
+                      {t.config_id == null ? (
+                        // ปลายทางจาก env แก้ไม่ได้จากหน้านี้ บอกให้ชัดแทนที่จะโชว์สวิตช์ที่กดไม่ได้
+                        <>
+                          <p>{t.notify_new_order ? "ออเดอร์ใหม่ ✓" : "ออเดอร์ใหม่ ✕"}</p>
+                          <p>{t.notify_payment ? "จ่ายเงิน ✓" : "จ่ายเงิน ✕"}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            แก้จากหน้านี้ไม่ได้
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span>ออเดอร์ใหม่</span>
+                            <Switch
+                              checked={t.notify_new_order}
+                              disabled={busyId === `${t.config_id}-notify_new_order`}
+                              onCheckedChange={(v) =>
+                                toggleTargetFlag(t.config_id!, "notify_new_order", v)
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span>จ่ายเงิน</span>
+                            <Switch
+                              checked={t.notify_payment}
+                              disabled={busyId === `${t.config_id}-notify_payment`}
+                              onCheckedChange={(v) =>
+                                toggleTargetFlag(t.config_id!, "notify_payment", v)
+                              }
+                            />
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-red-600"
+                            disabled={busyId === `${t.config_id}-remove`}
+                            onClick={() => removeTarget(t.config_id!)}
+                          >
+                            เอาออก
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -424,6 +560,76 @@ export default function LineNotificationPage() {
                   หมายเหตุ: LINE ไม่เปิดให้ดูรายชื่อสมาชิกในกลุ่มเป็นรายคน
                   ดูได้แค่จำนวน — ถ้าต้องการรู้ว่าใครอยู่บ้าง ให้เปิดกลุ่มในแอป LINE
                 </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* สมุดรายชื่อ — มีไว้แก้ปัญหาเดียวคือไอดีภายในของ LINE หาเองไม่ได้
+            ถ้าไม่มีการ์ดนี้ ปุ่ม "เพิ่มผู้รับ" จะใช้งานจริงไม่ได้เลย */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>คนที่เคยทักเข้ามา</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              กดเพิ่มเป็นผู้รับแจ้งเตือนได้เลย ไม่ต้องรู้ไอดี LINE
+              — ใครยังไม่เคยทักเข้าบัญชีร้านจะไม่ขึ้นในรายการนี้
+            </p>
+          </CardHeader>
+          <CardContent>
+            {knownSources.length === 0 ? (
+              <p className="py-6 text-sm text-muted-foreground">
+                ยังไม่มีใครทักเข้ามา — ให้คนที่ต้องการเพิ่มทักหาบัญชี LINE ของร้านก่อน
+                แล้วกดรีเฟรชหน้านี้
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {knownSources.map((src) => (
+                  <div
+                    key={src.id}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
+                  >
+                    {src.picture_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={src.picture_url}
+                        alt=""
+                        className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-bold">
+                        {src.source_type === "USER" ? "คน" : "กลุ่ม"}
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">
+                        {src.display_name ?? "(ดึงชื่อไม่ได้)"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        ทักมา {src.seen_count} ครั้ง · ล่าสุด{" "}
+                        {new Date(src.last_seen_at).toLocaleString("th-TH", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                    </div>
+
+                    {src.is_target ? (
+                      <span className="text-xs font-semibold text-green-600">
+                        เป็นผู้รับแล้ว
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="h-8"
+                        disabled={busyId === `src-${src.id}`}
+                        onClick={() => promoteSource(src.id)}
+                      >
+                        เพิ่มเป็นผู้รับ
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

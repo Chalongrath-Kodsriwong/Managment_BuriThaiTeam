@@ -35,6 +35,8 @@ export interface LineNotificationPayload {
 
 /** ปลายทางจริงที่จะได้รับแจ้งเตือน รวมที่มาจาก env ไม่ใช่แค่ในฐานข้อมูล */
 export interface LineDeliveryTargetItem {
+  /** null = ปลายทางที่ตั้งไว้ในเซิร์ฟเวอร์ แก้จากหน้าเว็บไม่ได้ */
+  config_id: number | null;
   name: string;
   source: "database" | "env";
   target_type: LineTargetType;
@@ -51,4 +53,21 @@ export interface LineDeliveryTargetItem {
 export interface LineDeliveryTargetsResponse {
   status: "success" | "error";
   data: LineDeliveryTargetItem[];
+}
+
+/** คน/กลุ่มที่เคยทักเข้ามาหาบัญชี LINE ของร้าน */
+export interface LineKnownSourceItem {
+  id: number;
+  source_type: LineTargetType;
+  source_id: string;
+  display_name: string | null;
+  picture_url: string | null;
+  seen_count: number;
+  last_seen_at: string;
+  is_target: boolean;
+}
+
+export interface LineKnownSourcesResponse {
+  status: "success" | "error";
+  data: LineKnownSourceItem[];
 }
